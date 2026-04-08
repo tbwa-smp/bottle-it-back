@@ -18,5 +18,5 @@ export const DEFAULT_SETTINGS: WaterModelSettings = {
   modelVersion: "v1-static-prompt-500ml",
 
   usdPerBottle: 0.05,
-  donationThresholdBottles: 0,
+  donationThresholdBottles: 20,
 };

@@ -100,7 +100,23 @@ export default function App() {
   async function handleResetAiWaterFootprint() {
     const donationStats = getDonationStats(stats, settings);
 
+    setIsInfoOpen(false);
+
     if (donationStats.reachedThreshold) {
+      try {
+        if (typeof chrome !== "undefined" && chrome.runtime?.sendMessage) {
+          await chrome.runtime.sendMessage({
+            type: "DONATION_STARTED",
+            bottles: donationStats.bottles,
+            usd: donationStats.totalUsd,
+            source: "usage",
+            timestamp: new Date().toISOString(),
+          });
+        }
+      } catch (error) {
+        console.error("Failed to save pending donation state", error);
+      }
+
       if (typeof chrome !== "undefined" && chrome.tabs?.create) {
         await chrome.tabs.create({ url: PLANET_WATER_URL });
         return;
@@ -110,7 +126,6 @@ export default function App() {
       return;
     }
 
-    setIsInfoOpen(false);
     setActiveTab("monthly");
   }
 
@@ -133,12 +148,14 @@ export default function App() {
     <main className="app-shell">
       <header className="app-header">
         <div className="app-info-trigger-wrap">
-          {(!isInfoOpen && activeTab !== "tips") && (
+          {!isInfoOpen && activeTab !== "tips" && (
             <img src={logo} alt="AI Water Tracker" className="app-logo" />
           )}
           <button
             type="button"
-            className={isInfoOpen ? "app-info-trigger is-active" : "app-info-trigger"}
+            className={
+              isInfoOpen ? "app-info-trigger is-active" : "app-info-trigger"
+            }
             onClick={handleToggleInfo}
             aria-label={isInfoOpen ? "Hide info" : "Show info"}
             aria-pressed={isInfoOpen}

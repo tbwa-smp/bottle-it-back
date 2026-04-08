@@ -563,12 +563,8 @@
     display: flex;
     align-items: flex-end;
     justify-content: center;
-    /* min-height: 56px; */
-    padding: 0px 10px;
-    /* max-width: 75px; */
+    padding: 24px 10px;
     border-radius: 14px;
-    /* background: rgba(255, 255, 255, 0.06); */
-	gap: 12px;
     width: 100%;
     flex-wrap: wrap;
 }
@@ -578,7 +574,7 @@
 	align-items: center;
 	justify-content: center;
 	min-height: 56px;
-	max-width: 75px;
+	max-width: 80px;
 	border-radius: 14px;
 	background: rgba(255, 255, 255, 0.06);
 }
