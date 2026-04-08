@@ -10,7 +10,7 @@ const matchedSite = getSiteByHostname(window.location.hostname);
 if (!matchedSite) {
   console.debug('AI Water Tracker loaded on unsupported host:', window.location.hostname);
 } else {
-  
+
   const site = matchedSite;
 
   const PROMPT_DEBOUNCE_MS = 1200;
@@ -29,10 +29,14 @@ if (!matchedSite) {
     return window.location.href;
   }
 
-  function send(message: TrackerMessage): void {
-    void chrome.runtime.sendMessage(message).catch((error) => {
-      console.debug('AI Water Tracker message failed:', error);
-    });
+  async function send(message: TrackerMessage): Promise<void> {
+    try {
+      console.log("[AIWT content] sending", message);
+      const response = await chrome.runtime.sendMessage(message);
+      console.log("[AIWT content] response", response);
+    } catch (error) {
+      console.error("[AIWT content] message failed", error);
+    }
   }
 
   async function loadSettings(): Promise<void> {
@@ -89,14 +93,19 @@ if (!matchedSite) {
     }
 
     lastPromptAt = now;
-    send({
-      type: 'PROMPT_SUBMIT',
+
+    const message = {
+      type: 'PROMPT_SUBMIT' as const,
       siteKey: site.key,
       label: site.label,
       url: currentUrl(),
       timestamp: nowIso(),
       source,
-    });
+    };
+
+    console.log('[🍾💧 Bottle It Back] sending prompt', message);
+
+    send(message);
   }
 
   function trackActivePing(): void {
@@ -175,6 +184,7 @@ if (!matchedSite) {
       }
 
       if (isInteractivePromptTarget(event.target)) {
+        console.log('[🍾💧 Bottle It Back] keydown prompt candidate', event.target);
         trackPrompt('enter');
       }
     },
@@ -185,6 +195,7 @@ if (!matchedSite) {
     'click',
     (event) => {
       if (looksLikeSendButton(event.target)) {
+        console.log('[🍾💧 Bottle It Back] click prompt candidate', event.target);
         trackPrompt('click');
       }
     },

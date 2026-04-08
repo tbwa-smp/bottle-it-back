@@ -1,5 +1,5 @@
-/// <reference types="vite/client" />
-/// <reference types="chrome" />
+// / <reference types="vite/client" />
+// / <reference types="chrome" />
 
 import { getSiteDefinition } from './sites';
 import type { SiteKey } from './types';
@@ -14,6 +14,9 @@ import type {
 } from './types';
 
 import { DEFAULT_SETTINGS, STORAGE_KEYS } from './storage';
+
+
+console.log('[🍾💧 Bottle It Back] background script loaded');
 
 type BackgroundResponse =
   | { ok: true; stats?: TrackerStats; settings?: WaterModelSettings }
@@ -147,6 +150,7 @@ async function initializeStorage(): Promise<void> {
 }
 
 chrome.runtime.onInstalled.addListener(() => {
+  console.log("[🍾💧 Bottle It Back] onInstalled fired");
   void initializeStorage();
 });
 
@@ -162,6 +166,7 @@ chrome.runtime.onMessage.addListener(
   ): true => {
     void (async () => {
       try {
+        console.log('[🍾💧 Bottle It Back] Received message', message);
         switch (message.type) {
           case 'PAGE_VISIT': {
             const [stats, settings] = await Promise.all([getStats(), getSettings()]);

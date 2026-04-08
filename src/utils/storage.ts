@@ -1,8 +1,10 @@
-import type { WaterModelSettings } from './types';
+import type { WaterModelSettings } from "./types";
 
 export const STORAGE_KEYS = {
-  stats: 'aiWaterTracker.stats',
-  settings: 'aiWaterTracker.settings',
+  stats: "aiWaterTracker.stats",
+  settings: "aiWaterTracker.settings",
+  hasCompletedOnboarding: "aiWaterTracker.hasCompletedOnboarding",
+  hasSeenBottleAnimation: "aiWaterTracker.hasSeenBottleAnimation",
 } as const;
 
 export const DEFAULT_SETTINGS: WaterModelSettings = {
@@ -11,5 +13,5 @@ export const DEFAULT_SETTINGS: WaterModelSettings = {
   waterPerActiveMinuteMl: 0,
   activePingIntervalSeconds: 15,
   bottleCapacityMl: 500,
-  modelVersion: 'v1-static-prompt-500ml',
+  modelVersion: "v1-static-prompt-500ml",
 };
