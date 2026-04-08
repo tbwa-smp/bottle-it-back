@@ -133,7 +133,7 @@ export default function App() {
     <main className="app-shell">
       <header className="app-header">
         <div className="app-info-trigger-wrap">
-          {!isInfoOpen && (
+          {(!isInfoOpen && activeTab !== "tips") && (
             <img src={logo} alt="AI Water Tracker" className="app-logo" />
           )}
           <button
@@ -169,8 +169,11 @@ export default function App() {
           <TipsView />
         )}
       </section>
-
-      <Tabs activeTab={activeTab} onChange={handleChangeTab} />
+      <Tabs
+        activeTab={activeTab}
+        onChange={handleChangeTab}
+        hideIndicator={isInfoOpen}
+      />
     </main>
   );
 }

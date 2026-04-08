@@ -7,17 +7,22 @@ export type TabKey = "usage" | "monthly" | "tips";
 type TabsProps = {
   activeTab: TabKey;
   onChange: (tab: TabKey) => void;
+  hideIndicator?: boolean;
 };
 
 const TAB_ORDER: TabKey[] = ["usage", "monthly", "tips"];
 
 const TAB_META: Record<TabKey, { icon: ReactNode; label: string }> = {
-  usage: { icon: <ClockIcon/>, label: "Usage Today" },
-  monthly: { icon: <CalendarIcon/>, label: "Monthly" },
-  tips: { icon: <BulbIcon/>, label: "Tips" },
+  usage: { icon: <ClockIcon />, label: "Usage Today" },
+  monthly: { icon: <CalendarIcon />, label: "Monthly" },
+  tips: { icon: <BulbIcon />, label: "Tips" },
 };
 
-export default function Tabs({ activeTab, onChange }: TabsProps) {
+export default function Tabs({
+  activeTab,
+  onChange,
+  hideIndicator = false,
+}: TabsProps) {
   const activeIndex = TAB_ORDER.indexOf(activeTab);
   const previousIndexRef = useRef(activeIndex);
 
@@ -98,28 +103,30 @@ export default function Tabs({ activeTab, onChange }: TabsProps) {
       </svg>
 
       <nav className="tabs" aria-label="Main views">
-        <div
-          className="tabs__indicator"
-          style={{
-            transform: `translateX(${activeIndex * 100}%)`,
-          }}
-          aria-hidden="true"
-        >
+        {!hideIndicator && (
           <div
-            key={`${activeTab}-${direction}`}
-            className={[
-              "tabs__indicator-pill",
-              direction !== "none" ? "is-moving" : "",
-              direction === "right" ? "from-left" : "",
-              direction === "left" ? "from-right" : "",
-            ]
-              .filter(Boolean)
-              .join(" ")}
-          />
-        </div>
+            className="tabs__indicator"
+            style={{
+              transform: `translateX(${activeIndex * 100}%)`,
+            }}
+            aria-hidden="true"
+          >
+            <div
+              key={`${activeTab}-${direction}`}
+              className={[
+                "tabs__indicator-pill",
+                direction !== "none" ? "is-moving" : "",
+                direction === "right" ? "from-left" : "",
+                direction === "left" ? "from-right" : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+            />
+          </div>
+        )}
 
         {TAB_ORDER.map((tab) => {
-          const isActive = activeTab === tab;
+          const isActive = !hideIndicator && activeTab === tab;
           const meta = TAB_META[tab];
 
           return (
