@@ -7,7 +7,6 @@
 
 #root {
   background: #6ec9f8;
-  padding: 10px;
 }
 
 p,
@@ -25,14 +24,14 @@ li {
 }
 
 main {
-  background: linear-gradient(180deg, rgba(219, 240, 252, 0.5) 0%, rgba(190, 225, 246, 0.8) 100%);
+  background: radial-gradient( rgba(190, 225, 246, 1) 100%, rgba(217, 239, 252, 1) 0%);
   /* background: url("https://lh5.googleusercontent.com/proxy/GCVG8mPw_wFQIajVX7HkqnEJv2249HWuCpYiz9mjxoCnIje9AnH6kGBoXjNjglMWD4cba6y5t_DQLtiE_P4sHoAYLMVzP6aL7jZtGw=w3840-h2160-p-k-no-nd-mv") center/cover no-repeat; */
   height: 560px;
   width: 100%;
   max-width: 300px;
   min-width: 300px;
-  border-radius: 24px;
-  border: solid 2px #fff;
+  border-radius: 12px;
+  border: solid 1px #fff;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95),
 		inset 0 -8px 30px rgba(94, 184, 234, 0.1),
 		0 12px 28px rgba(47, 107, 152, 0.14);

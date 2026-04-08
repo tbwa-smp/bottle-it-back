@@ -13,8 +13,8 @@ type TabsProps = {
 const TAB_ORDER: TabKey[] = ["usage", "monthly", "tips"];
 
 const TAB_META: Record<TabKey, { icon: ReactNode; label: string }> = {
-  usage: { icon: <ClockIcon />, label: "Usage Today" },
   monthly: { icon: <CalendarIcon />, label: "Monthly" },
+  usage: { icon: <ClockIcon />, label: "Usage Today" },
   tips: { icon: <BulbIcon />, label: "Tips" },
 };
 
