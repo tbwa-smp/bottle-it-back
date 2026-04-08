@@ -9,6 +9,10 @@ const EMPTY_STATS: TrackerStats = {
   totalWaterMl: 0,
   updatedAt: null,
   sites: {},
+  todayMl: 0,
+  monthlyMl: 0,
+  lastDailyResetDate: null,
+  lastMonthlyResetKey: null,
 };
 
 function hasChromeStorage() {

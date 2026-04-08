@@ -1,90 +1,124 @@
-import { useEffect, useState } from "react";
 import Bottle from "../components/Bottle";
-import { STORAGE_KEYS } from "../utils/storage";
 import type { TrackerStats, WaterModelSettings } from "../utils/types";
 
 type UsageTodayViewProps = {
-  stats: TrackerStats;
-  settings: WaterModelSettings;
+	stats: TrackerStats;
+	settings: WaterModelSettings;
+	onResetAiWaterFootprint: () => void | Promise<void>;
 };
 
-function hasChromeStorage() {
-  return typeof chrome !== "undefined" && !!chrome.storage?.local;
+function getTrackedTodayMl(stats: TrackerStats): number {
+	const statsWithToday = stats as TrackerStats & { todayMl?: number };
+
+	if (typeof statsWithToday.todayMl === "number") {
+		return Math.max(0, statsWithToday.todayMl);
+	}
+
+	return Math.max(0, stats.totalWaterMl);
+}
+
+function getTodayBottleCount(
+	todayMl: number,
+	bottleCapacityMl: number,
+): number {
+	if (bottleCapacityMl <= 0 || todayMl <= 0) return 0;
+	return todayMl / bottleCapacityMl;
+}
+
+function getTodayUsdTotal(
+	todayMl: number,
+	bottleCapacityMl: number,
+	usdPerBottle: number,
+): number {
+	if (bottleCapacityMl <= 0 || usdPerBottle <= 0 || todayMl <= 0) return 0;
+
+	const bottlesFilled = getTodayBottleCount(todayMl, bottleCapacityMl);
+	return bottlesFilled * usdPerBottle;
+}
+
+function formatBottleCount(bottles: number): string {
+	if (bottles >= 10) {
+		return String(Math.ceil(bottles));
+	}
+
+	return bottles.toFixed(1);
+}
+
+function getLoopingBottleMl(
+	todayMl: number,
+	bottleCapacityMl: number,
+): number {
+	if (bottleCapacityMl <= 0 || todayMl <= 0) return 0;
+	return todayMl % bottleCapacityMl;
+}
+
+function getCompletedBottleCount(
+	todayMl: number,
+	bottleCapacityMl: number,
+): number {
+	if (bottleCapacityMl <= 0 || todayMl <= 0) return 0;
+	return Math.floor(todayMl / bottleCapacityMl);
 }
 
 export default function UsageTodayView({
-  stats,
-  settings,
+	stats,
+	settings,
+	onResetAiWaterFootprint,
 }: UsageTodayViewProps) {
-  const [animateBottle, setAnimateBottle] = useState(false);
-  const [animationReady, setAnimationReady] = useState(false);
+	const bottleCapacityMl = settings.bottleCapacityMl;
+	const usdPerBottle = settings.usdPerBottle;
+	const todayMl = getTrackedTodayMl(stats);
 
-  useEffect(() => {
-    let cancelled = false;
+	const currentMl = getLoopingBottleMl(todayMl, bottleCapacityMl);
+	const completedBottleCount = getCompletedBottleCount(
+		todayMl,
+		bottleCapacityMl,
+	);
 
-    async function loadAnimationFlag() {
-      if (!hasChromeStorage()) {
-        if (!cancelled) setAnimationReady(true);
-        return;
-      }
+	const todayBottleCount = getTodayBottleCount(todayMl, bottleCapacityMl);
+	const todayUsdTotal = getTodayUsdTotal(
+		todayMl,
+		bottleCapacityMl,
+		usdPerBottle,
+	);
 
-      try {
-        const result = await chrome.storage.local.get(
-          STORAGE_KEYS.hasSeenBottleAnimation,
-        );
+	return (
+		<section className="usage-view">
+			<div className="usage-today-card">
+				<div style={{ flex: 1 }} />
 
-        if (cancelled) return;
+				<Bottle
+					key={completedBottleCount}
+					currentMl={currentMl}
+					maxMl={bottleCapacityMl}
+					animateOnMount
+					className="bottle"
+				/>
 
-        const hasSeenBottleAnimation = Boolean(
-          result[STORAGE_KEYS.hasSeenBottleAnimation],
-        );
+				<div className="usage-today-stats">
+					<p className="usage-today-stats__label">TOTAL</p>
 
-        setAnimateBottle(!hasSeenBottleAnimation);
-        setAnimationReady(true);
+					<div className="usage-today-stats__amount-box">
+						<span className="usage-today-stats__amount">
+							{todayUsdTotal.toFixed(2)}
+						</span>
+						<span className="usage-today-stats__currency"> USD</span>
+					</div>
 
-        if (!hasSeenBottleAnimation) {
-          await chrome.storage.local.set({
-            [STORAGE_KEYS.hasSeenBottleAnimation]: true,
-          });
-        }
-      } catch (error) {
-        console.error("Failed to load bottle animation flag", error);
-        if (!cancelled) setAnimationReady(true);
-      }
-    }
+					<p className="usage-today-stats__bottles">
+						{formatBottleCount(todayBottleCount)} BOTTLES
+					</p>
+				</div>
+			</div>
 
-    void loadAnimationFlag();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  if (!animationReady) return null;
-
-  const bottleCapacityMl = settings.bottleCapacityMl;
-  const currentMl = Math.min(stats.totalWaterMl, bottleCapacityMl);
-
-  return (
-    <section className="usage-view">
-      <h1>Usage Today</h1>
-
-      <Bottle
-        currentMl={currentMl}
-        maxMl={bottleCapacityMl}
-        animateOnMount={animateBottle}
-        className="bottle"
-      />
-
-      <div className="usage-stats">
-        <p>
-          <strong>{stats.totalPrompts}</strong> prompts tracked
-        </p>
-        <p>
-          <strong>{currentMl.toFixed(2)} mL</strong> / {bottleCapacityMl} mL
-        </p>
-        <p>{stats.totalVisits} AI site visits</p>
-      </div>
-    </section>
-  );
+			<div>
+				<button
+					className="reset-button"
+					onClick={onResetAiWaterFootprint}
+				>
+					RESET AI WATER FOOTPRINT
+				</button>
+			</div>
+		</section>
+	);
 }

@@ -3,14 +3,16 @@
 
 import { getSiteByHostname } from './sites';
 import { DEFAULT_SETTINGS, STORAGE_KEYS } from './storage';
-import type { TrackerMessage, WaterModelSettings } from './types';
+import type { PromptSource, TrackerMessage, WaterModelSettings } from './types';
 
 const matchedSite = getSiteByHostname(window.location.hostname);
 
 if (!matchedSite) {
-  console.debug('AI Water Tracker loaded on unsupported host:', window.location.hostname);
+  console.debug(
+    '[🍾💧 Bottle It Back] loaded on unsupported host:',
+    window.location.hostname,
+  );
 } else {
-
   const site = matchedSite;
 
   const PROMPT_DEBOUNCE_MS = 1200;
@@ -20,6 +22,7 @@ if (!matchedSite) {
   let isWindowFocused = document.hasFocus();
   let activePingIntervalSeconds = DEFAULT_SETTINGS.activePingIntervalSeconds;
   let activePingTimerId: number | null = null;
+  let trackingEnabled = DEFAULT_SETTINGS.trackingEnabled;
 
   function nowIso(): string {
     return new Date().toISOString();
@@ -29,33 +32,54 @@ if (!matchedSite) {
     return window.location.href;
   }
 
+  function stopActivePingTimer(): void {
+    if (activePingTimerId !== null) {
+      window.clearInterval(activePingTimerId);
+      activePingTimerId = null;
+    }
+  }
+
   async function send(message: TrackerMessage): Promise<void> {
+    if (!trackingEnabled) {
+      return;
+    }
+
     try {
-      console.log("[AIWT content] sending", message);
+      console.log('[🍾💧 Bottle It Back] sending', message);
       const response = await chrome.runtime.sendMessage(message);
-      console.log("[AIWT content] response", response);
+      console.log('[🍾💧 Bottle It Back] response', response);
     } catch (error) {
-      console.error("[AIWT content] message failed", error);
+      console.error('[🍾💧 Bottle It Back] message failed', error);
     }
   }
 
   async function loadSettings(): Promise<void> {
     const result = await chrome.storage.local.get(STORAGE_KEYS.settings);
-    const settings = {
+
+    const settings: WaterModelSettings = {
       ...DEFAULT_SETTINGS,
       ...(result[STORAGE_KEYS.settings] as Partial<WaterModelSettings> | undefined),
     };
 
-    activePingIntervalSeconds = Math.max(5, Math.floor(settings.activePingIntervalSeconds || 15));
-    restartActivePingTimer();
+    trackingEnabled = settings.trackingEnabled;
+    activePingIntervalSeconds = Math.max(
+      5,
+      Math.floor(settings.activePingIntervalSeconds || 15),
+    );
+
+    if (trackingEnabled) {
+      restartActivePingTimer();
+    } else {
+      stopActivePingTimer();
+    }
   }
 
   function restartActivePingTimer(): void {
-    if (activePingTimerId !== null) {
-      window.clearInterval(activePingTimerId);
-    }
-
-    activePingTimerId = window.setInterval(trackActivePing, activePingIntervalSeconds * 1000);
+    stopActivePingTimer();
+    activePingTimerId = window.setInterval(
+      trackActivePing,
+      activePingIntervalSeconds * 1000,
+    );
   }
 
   function isInteractivePromptTarget(target: EventTarget | null): boolean {
@@ -71,13 +95,19 @@ if (!matchedSite) {
   }
 
   function trackVisit(): void {
+    if (!trackingEnabled) {
+      return;
+    }
+
     const url = currentUrl();
+
     if (url === lastTrackedUrl) {
       return;
     }
 
     lastTrackedUrl = url;
-    send({
+
+    void send({
       type: 'PAGE_VISIT',
       siteKey: site.key,
       label: site.label,
@@ -86,16 +116,22 @@ if (!matchedSite) {
     });
   }
 
-  function trackPrompt(source: 'enter' | 'click' | 'submit'): void {
+  function trackPrompt(source: PromptSource): void {
+    if (!trackingEnabled) {
+      return;
+    }
+
     const now = Date.now();
+
     if (now - lastPromptAt < PROMPT_DEBOUNCE_MS) {
+      console.log('[🍾💧 Bottle It Back] prompt blocked by debounce', source);
       return;
     }
 
     lastPromptAt = now;
 
-    const message = {
-      type: 'PROMPT_SUBMIT' as const,
+    const message: TrackerMessage = {
+      type: 'PROMPT_SUBMIT',
       siteKey: site.key,
       label: site.label,
       url: currentUrl(),
@@ -104,17 +140,21 @@ if (!matchedSite) {
     };
 
     console.log('[🍾💧 Bottle It Back] sending prompt', message);
-
-    send(message);
+    void send(message);
   }
 
   function trackActivePing(): void {
+    if (!trackingEnabled) {
+      return;
+    }
+
     const isVisible = document.visibilityState === 'visible';
+
     if (!isVisible || !isWindowFocused) {
       return;
     }
 
-    send({
+    void send({
       type: 'ACTIVE_PING',
       siteKey: site.key,
       label: site.label,
@@ -166,10 +206,12 @@ if (!matchedSite) {
     'submit',
     (event) => {
       const submitEvent = event as SubmitEvent;
+
       if (
         isInteractivePromptTarget(document.activeElement) ||
         looksLikeSendButton(submitEvent.submitter)
       ) {
+        console.log('[🍾💧 Bottle It Back] submit prompt candidate', submitEvent.submitter);
         trackPrompt('submit');
       }
     },
@@ -207,18 +249,25 @@ if (!matchedSite) {
       return;
     }
 
-    const nextSettings = {
+    const nextSettings: WaterModelSettings = {
       ...DEFAULT_SETTINGS,
       ...(changes[STORAGE_KEYS.settings].newValue as
         | Partial<WaterModelSettings>
         | undefined),
     };
 
+    trackingEnabled = nextSettings.trackingEnabled;
     activePingIntervalSeconds = Math.max(
       5,
       Math.floor(nextSettings.activePingIntervalSeconds || 15),
     );
-    restartActivePingTimer();
+
+    if (trackingEnabled) {
+      restartActivePingTimer();
+      trackVisit();
+    } else {
+      stopActivePingTimer();
+    }
   });
 
   window.addEventListener('focus', () => {
@@ -233,6 +282,9 @@ if (!matchedSite) {
   patchHistoryMethod('pushState');
   patchHistoryMethod('replaceState');
 
-  void loadSettings();
-  trackVisit();
+  void loadSettings().then(() => {
+    if (trackingEnabled) {
+      trackVisit();
+    }
+  });
 }

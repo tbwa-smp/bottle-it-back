@@ -1,17 +1,24 @@
 import { useEffect, useState } from "react";
 
+// Views
 import UsageTodayView from "./views/UsageTodayView";
 import MonthlyView from "./views/MonthlyView";
 import TipsView from "./views/TipsView";
 import WelcomeView from "./views/WelcomeView";
 
+// Assets
 import logo from "./assets/logo.svg";
 import "./App.css";
 
+// Local
 import { STORAGE_KEYS } from "./utils/storage";
 import { useTrackerSnapshot } from "./hooks/useTrackerSnapshot";
+import TrackingSwitch from "./components/TrackingSwitch";
+import Tabs, { type TabKey } from "./components/Tabs";
+import { getDonationStats } from "./utils/stats";
 
-type TabKey = "usage" | "monthly" | "tips";
+const PLANET_WATER_URL =
+  "https://donate.planet-water.org/donate-to-planet-water";
 
 function hasChromeStorage() {
   return typeof chrome !== "undefined" && !!chrome.storage?.local;
@@ -72,6 +79,37 @@ export default function App() {
     }
   }
 
+  async function handleToggleTracking(nextEnabled: boolean) {
+    if (typeof chrome === "undefined" || !chrome.storage?.local) {
+      return;
+    }
+
+    const nextSettings = {
+      ...settings,
+      trackingEnabled: nextEnabled,
+    };
+
+    await chrome.storage.local.set({
+      [STORAGE_KEYS.settings]: nextSettings,
+    });
+  }
+
+  async function handleResetAiWaterFootprint() {
+    const donationStats = getDonationStats(stats, settings);
+
+    if (donationStats.reachedThreshold) {
+      if (typeof chrome !== "undefined" && chrome.tabs?.create) {
+        await chrome.tabs.create({ url: PLANET_WATER_URL });
+        return;
+      }
+
+      window.open(PLANET_WATER_URL, "_blank", "noopener,noreferrer");
+      return;
+    }
+
+    setActiveTab("monthly");
+  }
+
   if (!uiReady || !trackerReady) return null;
 
   if (!hasCompletedOnboarding) {
@@ -82,45 +120,27 @@ export default function App() {
     <main className="app-shell">
       <header className="app-header">
         <img src={logo} alt="AI Water Tracker" className="app-logo" />
+        <TrackingSwitch
+          checked={settings.trackingEnabled}
+          onChange={handleToggleTracking}
+        />
       </header>
 
       <section className="app-content">
         {activeTab === "usage" && (
-          <UsageTodayView stats={stats} settings={settings} />
+          <UsageTodayView
+            stats={stats}
+            settings={settings}
+            onResetAiWaterFootprint={handleResetAiWaterFootprint}
+          />
         )}
-
         {activeTab === "monthly" && (
           <MonthlyView stats={stats} settings={settings} />
         )}
-
         {activeTab === "tips" && <TipsView />}
       </section>
 
-      <nav className="tab-bar">
-        <button
-          type="button"
-          className={activeTab === "usage" ? "tab active" : "tab"}
-          onClick={() => setActiveTab("usage")}
-        >
-          💧
-        </button>
-
-        <button
-          type="button"
-          className={activeTab === "monthly" ? "tab active" : "tab"}
-          onClick={() => setActiveTab("monthly")}
-        >
-          📅
-        </button>
-
-        <button
-          type="button"
-          className={activeTab === "tips" ? "tab active" : "tab"}
-          onClick={() => setActiveTab("tips")}
-        >
-          💡
-        </button>
-      </nav>
+      <Tabs activeTab={activeTab} onChange={setActiveTab} />
     </main>
   );
 }

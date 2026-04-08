@@ -28,6 +28,7 @@ export default defineManifest({
     'https://copilot.microsoft.com/*',
     'https://www.deepseek.com/*',
     'https://chat.deepseek.com/*',
+    "https://donate.planet-water.org/*",
   ],
   background: {
     service_worker: 'src/utils/background.ts',
@@ -63,6 +64,11 @@ export default defineManifest({
       ],
       js: ['src/utils/content.ts'],
       run_at: 'document_idle',
+    },
+    {
+      matches: ["https://donate.planet-water.org/*"],
+      js: ["src/utils/donationWatch.ts"],
+      run_at: "document_idle",
     },
   ],
 })
