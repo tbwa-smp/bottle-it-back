@@ -228,7 +228,7 @@ export default function Bottle({
 
       <text
         x={VIEW_WIDTH / 2}
-        y={VIEW_HEIGHT - 280}
+        y={VIEW_HEIGHT - 1080}
         textAnchor="middle"
         fill="#2f6b98"
         fontSize="56"
@@ -239,7 +239,7 @@ export default function Bottle({
 
       <text
         x={VIEW_WIDTH / 2}
-        y={VIEW_HEIGHT - 165}
+        y={VIEW_HEIGHT - 960}
         textAnchor="middle"
         fill="#2f6b98"
         fontSize="110"

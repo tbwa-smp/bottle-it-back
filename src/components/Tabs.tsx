@@ -1,10 +1,6 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import "../App.css";
-
-// Assets
-import todayIcon from "../assets/today.png";
-import calendarIcon from "../assets/calendar.png";
-import tipsIcon from "../assets/tips.png";
+import { BulbIcon, CalendarIcon, ClockIcon } from "../views/InfoView";
 
 export type TabKey = "usage" | "monthly" | "tips";
 
@@ -15,10 +11,10 @@ type TabsProps = {
 
 const TAB_ORDER: TabKey[] = ["usage", "monthly", "tips"];
 
-const TAB_META: Record<TabKey, { icon: string; label: string }> = {
-  usage: { icon: todayIcon, label: "Usage Today" },
-  monthly: { icon: calendarIcon, label: "Monthly" },
-  tips: { icon: tipsIcon, label: "Tips" }
+const TAB_META: Record<TabKey, { icon: ReactNode; label: string }> = {
+  usage: { icon: <ClockIcon/>, label: "Usage Today" },
+  monthly: { icon: <CalendarIcon/>, label: "Monthly" },
+  tips: { icon: <BulbIcon/>, label: "Tips" },
 };
 
 export default function Tabs({ activeTab, onChange }: TabsProps) {
@@ -80,7 +76,11 @@ export default function Tabs({ activeTab, onChange }: TabsProps) {
               yChannelSelector="G"
               result="displaced"
             />
-            <feGaussianBlur in="displaced" stdDeviation="0.55" result="blurred" />
+            <feGaussianBlur
+              in="displaced"
+              stdDeviation="0.55"
+              result="blurred"
+            />
             <feColorMatrix
               in="blurred"
               type="matrix"
@@ -132,7 +132,7 @@ export default function Tabs({ activeTab, onChange }: TabsProps) {
               aria-label={meta.label}
               title={meta.label}
             >
-              <img src={meta.icon} alt="" aria-hidden="true" className="tabs__emoji" />
+              {meta.icon}
             </button>
           );
         })}

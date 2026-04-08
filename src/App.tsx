@@ -5,6 +5,7 @@ import UsageTodayView from "./views/UsageTodayView";
 import MonthlyView from "./views/MonthlyView";
 import TipsView from "./views/TipsView";
 import WelcomeView from "./views/WelcomeView";
+import InfoView, { InfoIcon } from "./views/InfoView";
 
 // Assets
 import logo from "./assets/logo.svg";
@@ -30,6 +31,7 @@ export default function App() {
   const [uiReady, setUiReady] = useState(false);
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false);
   const [activeTab, setActiveTab] = useState<TabKey>("usage");
+  const [isInfoOpen, setIsInfoOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -74,6 +76,7 @@ export default function App() {
 
       setHasCompletedOnboarding(true);
       setActiveTab("usage");
+      setIsInfoOpen(false);
     } catch (error) {
       console.error("Failed to save onboarding state", error);
     }
@@ -107,7 +110,17 @@ export default function App() {
       return;
     }
 
+    setIsInfoOpen(false);
     setActiveTab("monthly");
+  }
+
+  function handleToggleInfo() {
+    setIsInfoOpen((prev) => !prev);
+  }
+
+  function handleChangeTab(tab: TabKey) {
+    setIsInfoOpen(false);
+    setActiveTab(tab);
   }
 
   if (!uiReady || !trackerReady) return null;
@@ -119,7 +132,22 @@ export default function App() {
   return (
     <main className="app-shell">
       <header className="app-header">
-        <img src={logo} alt="AI Water Tracker" className="app-logo" />
+        <div className="app-info-trigger-wrap">
+          {!isInfoOpen && (
+            <img src={logo} alt="AI Water Tracker" className="app-logo" />
+          )}
+          <button
+            type="button"
+            className={isInfoOpen ? "app-info-trigger is-active" : "app-info-trigger"}
+            onClick={handleToggleInfo}
+            aria-label={isInfoOpen ? "Hide info" : "Show info"}
+            aria-pressed={isInfoOpen}
+            title={isInfoOpen ? "Hide info" : "Show info"}
+          >
+            <InfoIcon color="#fff" />
+          </button>
+        </div>
+
         <TrackingSwitch
           checked={settings.trackingEnabled}
           onChange={handleToggleTracking}
@@ -127,20 +155,22 @@ export default function App() {
       </header>
 
       <section className="app-content">
-        {activeTab === "usage" && (
+        {isInfoOpen ? (
+          <InfoView />
+        ) : activeTab === "usage" ? (
           <UsageTodayView
             stats={stats}
             settings={settings}
             onResetAiWaterFootprint={handleResetAiWaterFootprint}
           />
-        )}
-        {activeTab === "monthly" && (
+        ) : activeTab === "monthly" ? (
           <MonthlyView stats={stats} settings={settings} />
+        ) : (
+          <TipsView />
         )}
-        {activeTab === "tips" && <TipsView />}
       </section>
 
-      <Tabs activeTab={activeTab} onChange={setActiveTab} />
+      <Tabs activeTab={activeTab} onChange={handleChangeTab} />
     </main>
   );
 }
