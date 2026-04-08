@@ -819,3 +819,116 @@
 .app-info-panel {
 	width: 100%;
 }
+
+/* ==========
+  TIPS VIEW
+  =========== */
+.tips-view {
+  width: 100%;
+  min-height: 100%;
+  box-sizing: border-box;
+  /* padding: 8px 18px 120px; */
+  display: flex;
+  justify-content: center;
+  color: #2f6b98;
+}
+
+.tips-view__inner {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  justify-content: center;
+}
+
+.tips-view__title {
+  margin: 6px 0 0;
+  font-size: 1.4em;
+  line-height: 0.92;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #2f6b98;
+  text-shadow: 0 2px 8px rgba(255, 255, 255, 0.35);
+}
+
+.tips-view__subtitle {
+  margin: 12px 0px;
+  font-size: 1.4em;
+  line-height: 1;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  color: #2f6b98;
+}
+
+.tips-view__card {
+  width: 100%;
+  max-width: 100%;
+  padding: 18px 12px 15px;
+  box-sizing: border-box;
+  border-radius: 34px;
+  border: 2px solid rgba(255, 255, 255, 0.46);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.13) 0%,
+    rgba(255, 255, 255, 0.07) 100%
+  );
+  box-shadow:
+    0 0 24px rgba(255, 255, 255, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.32);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 150px;
+}
+
+.tips-view__card-title {
+  margin: 0 0 18px;
+  font-size: 1.4em;
+  line-height: 1.1;
+  font-weight: 700;
+  color: #2f6b98;
+}
+
+.tips-view__card-body {
+  margin: 0;
+  font-size: 1.4em;
+  line-height: 1.12;
+  font-weight: 400;
+  color: #2f6b98;
+  white-space: pre-line;
+}
+
+.tips-view__dots {
+  margin-top: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.tips-view__dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.72);
+  background: transparent;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
+  padding: 0;
+  cursor: pointer;
+}
+
+.tips-view__dot--active {
+  background: rgba(255, 255, 255, 0.34);
+  box-shadow:
+    0 0 10px rgba(255, 255, 255, 0.4),
+    inset 0 0 0 2px rgba(255, 255, 255, 0.12);
+}
+
+.tips-view__dot:focus-visible {
+  outline: 2px solid rgba(47, 107, 152, 0.65);
+  outline-offset: 2px;
+}
