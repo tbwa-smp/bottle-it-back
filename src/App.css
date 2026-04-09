@@ -81,7 +81,6 @@
 	justify-content: center;
 	width: 100%;
 	min-height: 375px;
-	padding: 8px 0 0;
 	color: #2f6b98;
 }
 
@@ -127,21 +126,21 @@
 
 .monthly-ring__label {
 	margin: 0;
-	font-size: 0.8em;
+	font-size: 0.7em;
 	font-weight: 600;
 	letter-spacing: 0.06em;
 }
 
 .monthly-ring__value {
 	margin: 4px 0 0;
-	font-size: 3.5em;
+	font-size: 3em;
 	line-height: 0.95;
 	font-weight: 700;
 }
 
 .monthly-ring__unit {
 	margin: 0;
-	font-size: 1.4em;
+	font-size: 1em;
 	font-weight: 600;
 	line-height: 1;
 }
@@ -153,24 +152,9 @@
 	letter-spacing: 0.06em;
 }
 
-.monthly-ring__value {
-	margin: 4px 0 0;
-	font-size: 3.5em;
-	line-height: 0.95;
-	font-weight: 700;
-}
-
 .monthly-equivalent {
 	width: 100%;
 	margin-top: 8px;
-}
-
-.monthly-equivalent__label {
-	margin: 0 0 4px;
-	font-size: 0.8em;
-	font-weight: 600;
-	letter-spacing: 0.05em;
-	color: #2f6b98;
 }
 
 .monthly-equivalent__row {
@@ -195,15 +179,22 @@
 		0 3px 10px rgba(0, 0, 0, 0.06);
 }
 
+.monthly-equivalent__label {
+    margin: 0 0 4px;
+    font-size: 0.8em;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+}
+
 .monthly-equivalent__amount {
-	font-size: 2em;
+	font-size: 1.8em;
 	line-height: 1;
 	font-weight: 700;
 	color: #2f6b98;
 }
 
 .monthly-equivalent__currency {
-	font-size: 18px;
+	font-size: 1.4em;
 	font-weight: 600;
 	color: #2f6b98;
 }
@@ -294,6 +285,32 @@
 	font-size: 0.8em;
 	font-weight: 600;
 	line-height: 1;
+}
+
+/* Monthly History button */
+.monthly-history-trigger-wrap {
+	position: absolute;
+	bottom: 15%;
+	border: none;
+	background: transparent;
+}
+.monthly-history-trigger-wrap button {
+	border: none;
+	background: transparent;
+	cursor: pointer;
+	border-radius: 25px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 4px;
+	transition: 0.15s ease-in;
+}
+.monthly-history-trigger-wrap button:hover {
+	transform: scale(1.025);
+	background: rgba(255,255,255,0.25)
+}
+.monthly-history-trigger-wrap button svg {
+	stroke: #fff;
 }
 
 /* ==============
@@ -573,7 +590,6 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	min-height: 56px;
 	max-width: 80px;
 	border-radius: 14px;
 	background: rgba(255, 255, 255, 0.06);

@@ -50,6 +50,12 @@ export interface TrackerStats {
   totalPrompts: number;
   totalActiveSeconds: number;
   totalWaterMl: number;
+
+  totalDonatedUsd: number;
+  totalDonatedBottles: number;
+  totalDonationsCount: number;
+  lastDonationAt: string | null;
+
   updatedAt: string | null;
   lastDailyResetDate: string | null;
   lastMonthlyResetKey: string | null;
@@ -134,7 +140,7 @@ export type TrackerResponse =
   | OkGenericResponse
   | ErrorResponse;
 
-  export interface PendingDonationState {
+export interface PendingDonationState {
   bottles: number;
   usd: number;
   source: "monthly" | "usage";

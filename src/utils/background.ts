@@ -11,7 +11,7 @@ import type {
   TrackerMessage,
   TrackerStats,
   WaterModelSettings,
-  PendingDonationState
+  PendingDonationState,
 } from "./types";
 
 import { DEFAULT_SETTINGS, STORAGE_KEYS } from "./storage";
@@ -65,6 +65,12 @@ function createEmptyStats(): TrackerStats {
     totalPrompts: 0,
     totalActiveSeconds: 0,
     totalWaterMl: 0,
+
+    totalDonatedUsd: 0,
+    totalDonatedBottles: 0,
+    totalDonationsCount: 0,
+    lastDonationAt: null,
+
     updatedAt: null,
     lastDailyResetDate: dailyKey,
     lastMonthlyResetKey: monthlyKey,
@@ -74,6 +80,32 @@ function createEmptyStats(): TrackerStats {
 
 function roundToTwo(value: number): number {
   return Math.round(value * 100) / 100;
+}
+
+function normalizeSettings(
+  partial?: Partial<WaterModelSettings>,
+): WaterModelSettings {
+  const next: WaterModelSettings = {
+    ...DEFAULT_SETTINGS,
+    ...partial,
+  };
+
+  if (
+    !Number.isFinite(next.donationThresholdBottles) ||
+    next.donationThresholdBottles <= 0
+  ) {
+    next.donationThresholdBottles = DEFAULT_SETTINGS.donationThresholdBottles;
+  }
+
+  if (!Number.isFinite(next.usdPerBottle) || next.usdPerBottle <= 0) {
+    next.usdPerBottle = DEFAULT_SETTINGS.usdPerBottle;
+  }
+
+  if (!Number.isFinite(next.bottleCapacityMl) || next.bottleCapacityMl <= 0) {
+    next.bottleCapacityMl = DEFAULT_SETTINGS.bottleCapacityMl;
+  }
+
+  return next;
 }
 
 function normalizeStatsForCurrentPeriod(stats: TrackerStats): TrackerStats {
@@ -95,11 +127,12 @@ function normalizeStatsForCurrentPeriod(stats: TrackerStats): TrackerStats {
 
 async function getSettings(): Promise<WaterModelSettings> {
   const result = await chrome.storage.local.get(STORAGE_KEYS.settings);
+  const settings = normalizeSettings(
+    result[STORAGE_KEYS.settings] as Partial<WaterModelSettings> | undefined,
+  );
 
-  return {
-    ...DEFAULT_SETTINGS,
-    ...(result[STORAGE_KEYS.settings] as Partial<WaterModelSettings> | undefined),
-  };
+  await setSettings(settings);
+  return settings;
 }
 
 async function setSettings(settings: WaterModelSettings): Promise<void> {
@@ -110,7 +143,9 @@ async function setSettings(settings: WaterModelSettings): Promise<void> {
 
 async function getStats(): Promise<TrackerStats> {
   const result = await chrome.storage.local.get(STORAGE_KEYS.stats);
-  const stored = result[STORAGE_KEYS.stats] as Partial<TrackerStats> | undefined;
+  const stored = result[STORAGE_KEYS.stats] as
+    | Partial<TrackerStats>
+    | undefined;
 
   const merged: TrackerStats = {
     ...createEmptyStats(),
@@ -139,7 +174,11 @@ async function setStats(stats: TrackerStats): Promise<void> {
   });
 }
 
-function ensureSiteStats(stats: TrackerStats, siteKey: SiteKey, label: string): SiteStats {
+function ensureSiteStats(
+  stats: TrackerStats,
+  siteKey: SiteKey,
+  label: string,
+): SiteStats {
   const existing = stats.sites[siteKey];
   if (existing) {
     return existing;
@@ -159,7 +198,11 @@ function ensureSiteStats(stats: TrackerStats, siteKey: SiteKey, label: string): 
   return next;
 }
 
-function touch(stats: TrackerStats, siteStats: SiteStats, timestamp: string): void {
+function touch(
+  stats: TrackerStats,
+  siteStats: SiteStats,
+  timestamp: string,
+): void {
   stats.updatedAt = timestamp;
   siteStats.lastSeenAt = timestamp;
 }
@@ -213,7 +256,8 @@ function applyActivePing(
 ): TrackerStats {
   const next = structuredClone(normalizeStatsForCurrentPeriod(stats));
   const siteStats = ensureSiteStats(next, message.siteKey, message.label);
-  const waterMl = (message.activeSeconds / 60) * settings.waterPerActiveMinuteMl;
+  const waterMl =
+    (message.activeSeconds / 60) * settings.waterPerActiveMinuteMl;
 
   siteStats.activeSeconds += message.activeSeconds;
   siteStats.waterMl = roundToTwo(siteStats.waterMl + waterMl);
@@ -229,10 +273,16 @@ function applyActivePing(
 
 async function getPendingDonation(): Promise<PendingDonationState | null> {
   const result = await chrome.storage.local.get(STORAGE_KEYS.pendingDonation);
-  return (result[STORAGE_KEYS.pendingDonation] as PendingDonationState | undefined) ?? null;
+  return (
+    (result[STORAGE_KEYS.pendingDonation] as
+      | PendingDonationState
+      | undefined) ?? null
+  );
 }
 
-async function setPendingDonation(pendingDonation: PendingDonationState): Promise<void> {
+async function setPendingDonation(
+  pendingDonation: PendingDonationState,
+): Promise<void> {
   await chrome.storage.local.set({
     [STORAGE_KEYS.pendingDonation]: pendingDonation,
   });
@@ -242,11 +292,26 @@ async function clearPendingDonation(): Promise<void> {
   await chrome.storage.local.remove(STORAGE_KEYS.pendingDonation);
 }
 
-function applyDonationReset(stats: TrackerStats, timestamp: string): TrackerStats {
+function applyDonationCompletion(
+  stats: TrackerStats,
+  pendingDonation: PendingDonationState,
+  timestamp: string,
+): TrackerStats {
   const next = structuredClone(normalizeStatsForCurrentPeriod(stats));
+
   next.todayMl = 0;
   next.monthlyMl = 0;
+
+  next.totalDonatedBottles = roundToTwo(
+    next.totalDonatedBottles + pendingDonation.bottles,
+  );
+  next.totalDonatedUsd = roundToTwo(
+    next.totalDonatedUsd + pendingDonation.usd,
+  );
+  next.totalDonationsCount += 1;
+  next.lastDonationAt = timestamp;
   next.updatedAt = timestamp;
+
   return next;
 }
 
@@ -278,7 +343,10 @@ chrome.runtime.onMessage.addListener(
 
         switch (message.type) {
           case "PAGE_VISIT": {
-            const [stats, settings] = await Promise.all([getStats(), getSettings()]);
+            const [stats, settings] = await Promise.all([
+              getStats(),
+              getSettings(),
+            ]);
 
             if (!settings.trackingEnabled) {
               sendResponse({ ok: true, stats });
@@ -292,7 +360,10 @@ chrome.runtime.onMessage.addListener(
           }
 
           case "PROMPT_SUBMIT": {
-            const [stats, settings] = await Promise.all([getStats(), getSettings()]);
+            const [stats, settings] = await Promise.all([
+              getStats(),
+              getSettings(),
+            ]);
 
             if (!settings.trackingEnabled) {
               sendResponse({ ok: true, stats });
@@ -306,7 +377,10 @@ chrome.runtime.onMessage.addListener(
           }
 
           case "ACTIVE_PING": {
-            const [stats, settings] = await Promise.all([getStats(), getSettings()]);
+            const [stats, settings] = await Promise.all([
+              getStats(),
+              getSettings(),
+            ]);
 
             if (!settings.trackingEnabled) {
               sendResponse({ ok: true, stats });
@@ -372,12 +446,9 @@ chrome.runtime.onMessage.addListener(
               return;
             }
 
-            const nextStats = applyDonationReset(stats, message.timestamp);
+            const nextStats = applyDonationCompletion(stats, pendingDonation, message.timestamp);
 
-            await Promise.all([
-              setStats(nextStats),
-              clearPendingDonation(),
-            ]);
+            await Promise.all([setStats(nextStats), clearPendingDonation()]);
 
             sendResponse({ ok: true, stats: nextStats });
             return;
@@ -390,7 +461,9 @@ chrome.runtime.onMessage.addListener(
         }
       } catch (error) {
         const siteLabel =
-          "siteKey" in message ? getSiteDefinition(message.siteKey)?.label : undefined;
+          "siteKey" in message
+            ? getSiteDefinition(message.siteKey)?.label
+            : undefined;
 
         console.error("AI Water Tracker background error", {
           error,
@@ -400,7 +473,10 @@ chrome.runtime.onMessage.addListener(
 
         sendResponse({
           ok: false,
-          error: error instanceof Error ? error.message : "Unknown background error.",
+          error:
+            error instanceof Error
+              ? error.message
+              : "Unknown background error.",
         });
       }
     })();

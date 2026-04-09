@@ -45,7 +45,7 @@ export default function Tabs({
         bottom: 0,
         left: 0,
         width: "100%",
-        padding: "24px",
+        padding: "12px",
         boxSizing: "border-box",
       }}
     >
