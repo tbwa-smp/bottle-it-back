@@ -9,6 +9,8 @@ type MonthlyViewProps = {
 
 const DONATION_URL = "https://donate.planet-water.org/donate-to-planet-water";
 const MONTHLY_RING_GOAL_BOTTLES = 100;
+const MINIMUM_DONATION_USD = 1;
+const MINIMUM_DONATION_BOTTLES = 20;
 
 function getTrackedMonthlyMl(stats: TrackerStats): number {
   const statsWithMonthly = stats as TrackerStats & { monthlyMl?: number };
@@ -47,21 +49,57 @@ function getMinimumDonationBottles(
   donationThresholdBottles: number,
 ): number {
   const actualUsageFloor =
-    actualMonthlyBottles > 0 ? Math.ceil(actualMonthlyBottles) : 0;
+    actualMonthlyBottles > 0 ? Math.floor(actualMonthlyBottles) : 0;
 
-  return Math.max(donationThresholdBottles, actualUsageFloor, 1);
+  return Math.max(donationThresholdBottles, actualUsageFloor, 0);
 }
 
-async function openDonationPage(
+function getDonationPayload(
+  actualMonthlyBottles: number,
   selectedDonationBottles: number,
   usdPerBottle: number,
 ) {
-  const usd = Number((selectedDonationBottles * usdPerBottle).toFixed(2));
+  const roundedActualMonthlyBottles = Number(actualMonthlyBottles.toFixed(2));
+  const roundedSelectedDonationBottles = Number(
+    selectedDonationBottles.toFixed(2),
+  );
 
+  const actualOwedUsd = Number(
+    getUsdTotal(roundedActualMonthlyBottles, usdPerBottle).toFixed(2),
+  );
+
+  const selectedDonationUsd = Number(
+    getUsdTotal(roundedSelectedDonationBottles, usdPerBottle).toFixed(2),
+  );
+
+  if (roundedActualMonthlyBottles < MINIMUM_DONATION_BOTTLES) {
+    if (roundedSelectedDonationBottles >= MINIMUM_DONATION_BOTTLES) {
+      return {
+        bottles: roundedSelectedDonationBottles,
+        usd: selectedDonationUsd,
+      };
+    }
+
+    return {
+      bottles: MINIMUM_DONATION_BOTTLES,
+      usd: MINIMUM_DONATION_USD,
+    };
+  }
+
+  return {
+    bottles: Math.max(
+      roundedActualMonthlyBottles,
+      roundedSelectedDonationBottles,
+    ),
+    usd: Math.max(actualOwedUsd, selectedDonationUsd),
+  };
+}
+
+async function openDonationPage(bottles: number, usd: number) {
   try {
     await chrome.runtime.sendMessage({
       type: "DONATION_STARTED",
-      bottles: selectedDonationBottles,
+      bottles,
       usd,
       source: "monthly",
       timestamp: new Date().toISOString(),
@@ -144,9 +182,19 @@ export default function MonthlyView({
     );
   }, [minimumDonationBottles]);
 
-  const donationUsdTotal = getUsdTotal(
-    selectedDonationBottles,
+  const equivalentUsdTotal = getUsdTotal(
+    monthlyBottles,
     settings.usdPerBottle,
+  );
+
+  const donationPayload = useMemo(
+    () =>
+      getDonationPayload(
+        monthlyBottles,
+        selectedDonationBottles,
+        settings.usdPerBottle,
+      ),
+    [monthlyBottles, selectedDonationBottles, settings.usdPerBottle],
   );
 
   const progressRatio = Math.max(
@@ -249,7 +297,7 @@ export default function MonthlyView({
           <div style={{ textAlign: "center" }}>
             <div className="monthly-equivalent__amount-box">
               <span className="monthly-equivalent__amount">
-                {donationUsdTotal.toFixed(2)}
+                {equivalentUsdTotal.toFixed(2)}
               </span>
               <span className="monthly-equivalent__currency">USD</span>
             </div>
@@ -259,7 +307,7 @@ export default function MonthlyView({
             type="button"
             className="monthly-donate-button"
             onClick={() =>
-              openDonationPage(selectedDonationBottles, settings.usdPerBottle)
+              openDonationPage(donationPayload.bottles, donationPayload.usd)
             }
           >
             GIVE WATER BACK

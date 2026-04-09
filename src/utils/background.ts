@@ -95,7 +95,7 @@ function normalizeSettings(
 
   if (
     !Number.isFinite(next.donationThresholdBottles) ||
-    next.donationThresholdBottles <= 0
+    next.donationThresholdBottles < 0
   ) {
     next.donationThresholdBottles = DEFAULT_SETTINGS.donationThresholdBottles;
   }

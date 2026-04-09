@@ -1,5 +1,5 @@
 import logo from "../assets/logo.svg";
-
+import planetWater from "../assets/planet-water.svg";
 // type InfoViewProps = {
 //   onGetStarted?: () => void | Promise<void>;
 // };
@@ -468,6 +468,10 @@ const PLATFORM_LOGOS = [
 export default function InfoView() {
   // const isOnboarding = typeof onGetStarted === "function";
 
+  function openPopup() {
+    window.open("https://planet-water.org", "_blank");
+  }
+
   return (
     <section className="info-view">
       <div className="info-view__body">
@@ -503,25 +507,17 @@ export default function InfoView() {
         </div>
 
         <p className="info-view__copy info-view__copy--footer">
-          Most importantly, it is the only program that allows users to offset
-          what they use by giving back the amount of water they use to{" "}
-          <strong>planet-water.org.</strong>
+          Most importantly, it is the only program that allows users to offset what they use by giving back the amount of water they use to <strong>Planet Water Foundation</strong>
         </p>
       </div>
-
-      {/* {isOnboarding && (
-        <div className="info-view__mock-nav" aria-hidden="true">
-          <div className="info-view__mock-nav-item">
-            <CalendarIcon />
-          </div>
-          <div className="info-view__mock-nav-item info-view__mock-nav-item--active">
-            <ClockIcon />
-          </div>
-          <div className="info-view__mock-nav-item">
-            <BulbIcon />
-          </div>
-        </div>
-      )} */}
+      <button className="reset-button" onClick={openPopup}>
+        Visit planet-water.org
+      </button>
+      <img src={planetWater} alt="Planet Water Foundation" className="info-view__pw-logo" style={{
+        width: "100%",
+        maxWidth: "50px",
+        margin: "0 auto"
+      }} />
     </section>
   );
 }

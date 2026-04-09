@@ -17,10 +17,12 @@ import { STORAGE_KEYS } from "./utils/storage";
 import { useTrackerSnapshot } from "./hooks/useTrackerSnapshot";
 import TrackingSwitch from "./components/TrackingSwitch";
 import Tabs, { type TabKey } from "./components/Tabs";
-import { getDonationStats } from "./utils/stats";
+// import { getDonationStats } from "./utils/stats";
 
 const PLANET_WATER_URL =
 	"https://donate.planet-water.org/donate-to-planet-water";
+
+const RESET_DONATION_THRESHOLD_BOTTLES = 20;
 
 function hasChromeStorage() {
 	return typeof chrome !== "undefined" && !!chrome.storage?.local;
@@ -107,18 +109,28 @@ export default function App() {
 	}
 
 	async function handleResetAiWaterFootprint() {
-		const donationStats = getDonationStats(stats, settings);
+		const todayMl =
+			typeof stats.todayMl === "number" ? Math.max(0, stats.todayMl) : 0;
+
+		const todayBottles =
+			settings.bottleCapacityMl > 0
+				? todayMl / settings.bottleCapacityMl
+				: 0;
 
 		setIsInfoOpen(false);
 		setIsHistoryOpen(false);
 
-		if (donationStats.reachedThreshold) {
+		if (todayBottles >= RESET_DONATION_THRESHOLD_BOTTLES) {
+			const usd = Number(
+				(todayBottles * settings.usdPerBottle).toFixed(2),
+			);
+
 			try {
 				if (typeof chrome !== "undefined" && chrome.runtime?.sendMessage) {
 					await chrome.runtime.sendMessage({
 						type: "DONATION_STARTED",
-						bottles: donationStats.bottles,
-						usd: donationStats.totalUsd,
+						bottles: Number(todayBottles.toFixed(2)),
+						usd,
 						source: "usage",
 						timestamp: new Date().toISOString(),
 					});
@@ -168,8 +180,7 @@ export default function App() {
 
 	return (
 		<main className="app-shell">
-			<header className={`app-header ${
-				settings.trackingEnabled
+			<header className={`app-header ${settings.trackingEnabled
 					? "app-shell"
 					: "app-shell app-shell--paused"}`}>
 				<div className="app-info-trigger-wrap">

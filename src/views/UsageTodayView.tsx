@@ -2,128 +2,127 @@ import Bottle from "../components/Bottle";
 import type { TrackerStats, WaterModelSettings } from "../utils/types";
 
 type UsageTodayViewProps = {
-	stats: TrackerStats;
-	settings: WaterModelSettings;
-	onResetAiWaterFootprint: () => void | Promise<void>;
+  stats: TrackerStats;
+  settings: WaterModelSettings;
+  onResetAiWaterFootprint: () => void | Promise<void>;
 };
 
 function getTrackedTodayMl(stats: TrackerStats): number {
-	const statsWithToday = stats as TrackerStats & { todayMl?: number };
+  const statsWithToday = stats as TrackerStats & { todayMl?: number };
 
-	if (typeof statsWithToday.todayMl === "number") {
-		return Math.max(0, statsWithToday.todayMl);
-	}
+  if (typeof statsWithToday.todayMl === "number") {
+    return Math.max(0, statsWithToday.todayMl);
+  }
 
-	return Math.max(0, stats.totalWaterMl);
+  return Math.max(0, stats.totalWaterMl);
 }
 
 function getTodayBottleCount(
-	todayMl: number,
-	bottleCapacityMl: number,
+  todayMl: number,
+  bottleCapacityMl: number,
 ): number {
-	if (bottleCapacityMl <= 0 || todayMl <= 0) return 0;
-	return todayMl / bottleCapacityMl;
+  if (bottleCapacityMl <= 0 || todayMl <= 0) return 0;
+  return todayMl / bottleCapacityMl;
 }
 
 function getTodayUsdTotal(
-	todayMl: number,
-	bottleCapacityMl: number,
-	usdPerBottle: number,
+  todayMl: number,
+  bottleCapacityMl: number,
+  usdPerBottle: number,
 ): number {
-	if (bottleCapacityMl <= 0 || usdPerBottle <= 0 || todayMl <= 0) return 0;
+  if (bottleCapacityMl <= 0 || usdPerBottle <= 0 || todayMl <= 0) return 0;
 
-	const bottlesFilled = getTodayBottleCount(todayMl, bottleCapacityMl);
-	return bottlesFilled * usdPerBottle;
+  const bottlesFilled = getTodayBottleCount(todayMl, bottleCapacityMl);
+  return bottlesFilled * usdPerBottle;
 }
 
 function formatBottleCount(bottles: number): string {
-	if (bottles >= 10) {
-		return String(Math.ceil(bottles));
-	}
+  if (bottles >= 10) {
+    return String(Math.ceil(bottles));
+  }
 
-	return bottles.toFixed(1);
+  return bottles.toFixed(1);
 }
 
 function getLoopingBottleMl(
-	todayMl: number,
-	bottleCapacityMl: number,
+  todayMl: number,
+  bottleCapacityMl: number,
 ): number {
-	if (bottleCapacityMl <= 0 || todayMl <= 0) return 0;
-	return todayMl % bottleCapacityMl;
+  if (bottleCapacityMl <= 0 || todayMl <= 0) return 0;
+  return todayMl % bottleCapacityMl;
 }
 
 function getCompletedBottleCount(
-	todayMl: number,
-	bottleCapacityMl: number,
+  todayMl: number,
+  bottleCapacityMl: number,
 ): number {
-	if (bottleCapacityMl <= 0 || todayMl <= 0) return 0;
-	return Math.floor(todayMl / bottleCapacityMl);
+  if (bottleCapacityMl <= 0 || todayMl <= 0) return 0;
+  return Math.floor(todayMl / bottleCapacityMl);
 }
 
 export default function UsageTodayView({
-	stats,
-	settings,
-	onResetAiWaterFootprint,
+  stats,
+  settings,
+  onResetAiWaterFootprint,
 }: UsageTodayViewProps) {
-	const bottleCapacityMl = settings.bottleCapacityMl;
-	const usdPerBottle = settings.usdPerBottle;
-	const todayMl = getTrackedTodayMl(stats);
+  const bottleCapacityMl = settings.bottleCapacityMl;
+  const usdPerBottle = settings.usdPerBottle;
+  const todayMl = getTrackedTodayMl(stats);
 
-	const currentMl = getLoopingBottleMl(todayMl, bottleCapacityMl);
-	const completedBottleCount = getCompletedBottleCount(
-		todayMl,
-		bottleCapacityMl,
-	);
+  const currentMl = getLoopingBottleMl(todayMl, bottleCapacityMl);
+  const completedBottleCount = getCompletedBottleCount(
+    todayMl,
+    bottleCapacityMl,
+  );
 
-	const todayBottleCount = getTodayBottleCount(todayMl, bottleCapacityMl);
-	const todayUsdTotal = getTodayUsdTotal(
-		todayMl,
-		bottleCapacityMl,
-		usdPerBottle,
-	);
+  const todayBottleCount = getTodayBottleCount(todayMl, bottleCapacityMl);
+  const todayUsdTotal = getTodayUsdTotal(
+    todayMl,
+    bottleCapacityMl,
+    usdPerBottle,
+  );
 
-	return (
-		<section className="usage-view">
-			<div className="usage-today-card">
-				<div style={{ flex: 1 }} />
+  const isPaused = !settings.trackingEnabled;
 
-				<Bottle
-					key={completedBottleCount}
-					currentMl={currentMl}
-					maxMl={bottleCapacityMl}
-					animateOnMount
-					className={`bottle ${
-						settings.trackingEnabled
-							? "app-shell"
-							: "app-shell app-shell--paused"
-					}`}
-				/>
+  return (
+    <section className="usage-view">
+      <div className="usage-today-card">
+        <div style={{ flex: 1 }} />
 
-				<div className={`usage-today-stats ${settings.trackingEnabled ? "" : "app-shell--paused"}`}>
-					<p className="usage-today-stats__label">TOTAL</p>
+        <Bottle
+          key={completedBottleCount}
+          currentMl={currentMl}
+          maxMl={bottleCapacityMl}
+          animateOnMount={!isPaused}
+          animationsEnabled={!isPaused}
+          className={`bottle ${isPaused ? "app-shell--paused" : ""}`}
+        />
 
-					<div className="usage-today-stats__amount-box">
-						<span className="usage-today-stats__amount">
-							{todayUsdTotal.toFixed(2)}
-						</span>
-						<span className="usage-today-stats__currency"> USD</span>
-					</div>
+        <div className={`usage-today-stats ${isPaused ? "app-shell--paused" : ""}`}>
+          <p className="usage-today-stats__label">TOTAL</p>
 
-					<p className="usage-today-stats__bottles">
-						{formatBottleCount(todayBottleCount)} BOTTLES
-					</p>
-				</div>
-			</div>
+          <div className="usage-today-stats__amount-box">
+            <span className="usage-today-stats__amount">
+              {todayUsdTotal.toFixed(2)}
+            </span>
+            <span className="usage-today-stats__currency"> USD</span>
+          </div>
 
-			<div>
-				<button
-					className={`reset-button ${settings.trackingEnabled ? "" : "app-shell--paused"}`}
-					type="button"
-					onClick={onResetAiWaterFootprint}
-				>
-					RESET AI WATER FOOTPRINT
-				</button>
-			</div>
-		</section>
-	);
+          <p className="usage-today-stats__bottles">
+            {formatBottleCount(todayBottleCount)} BOTTLES
+          </p>
+        </div>
+      </div>
+
+      <div>
+        <button
+          className={`reset-button ${isPaused ? "app-shell--paused" : ""}`}
+          type="button"
+          onClick={onResetAiWaterFootprint}
+        >
+          RESET AI WATER FOOTPRINT
+        </button>
+      </div>
+    </section>
+  );
 }

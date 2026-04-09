@@ -1,5 +1,5 @@
 import logo from "../assets/logo.svg";
-import planetwater from "../assets/planetwater.png";
+import planetwater from "../assets/planet-water.svg";
 
 type WelcomeViewProps = {
   onGetStarted: () => void | Promise<void>;
