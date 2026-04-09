@@ -1,8 +1,18 @@
 import { useMemo, useState } from "react";
 import type { TrackerStats, WaterModelSettings } from "../utils/types";
 
+// Assets
+import bottleIcon from "../assets/history-bottle.png";
+import facebook from "../assets/socmed/facebook.png";
+import twitter from "../assets/socmed/twitter.png";
+import linkedin from "../assets/socmed/linkedin.png";
+import copy from "../assets/socmed/copy.png";
+
 type HistoryViewProps = {
-	stats: TrackerStats;
+	stats: TrackerStats & {
+		onboardedAt?: string | null;
+		installedAt?: string | null;
+	};
 	settings: WaterModelSettings;
 	onBack: () => void;
 };
@@ -14,11 +24,6 @@ function getTotalTrackedMl(stats: TrackerStats): number {
 function getBottleCount(totalMl: number, bottleCapacityMl: number): number {
 	if (bottleCapacityMl <= 0 || totalMl <= 0) return 0;
 	return totalMl / bottleCapacityMl;
-}
-
-function getUsdEquivalent(bottles: number, usdPerBottle: number): number {
-	if (bottles <= 0 || usdPerBottle <= 0) return 0;
-	return bottles * usdPerBottle;
 }
 
 function formatBottleCount(bottles: number): string {
@@ -33,18 +38,42 @@ function formatBottleCount(bottles: number): string {
 	return bottles.toFixed(1);
 }
 
-function buildShareText(totalMl: number, bottles: number, usdEquivalent: number) {
-	const mlText = Math.round(totalMl).toLocaleString();
-	const bottleText = formatBottleCount(bottles);
+function formatUsd(usd: number): string {
+	return Math.max(0, usd).toFixed(2);
+}
 
-	return `I'm using Bottle It Back to track my AI water footprint. So far I've tracked ${mlText} mL of water use, or about ${bottleText} bottles, equivalent to $${usdEquivalent.toFixed(
-		2,
-	)}.`;
+function formatSinceDate(dateString?: string | null): string {
+	if (!dateString) return "SINCE YOU GOT STARTED";
+
+	const date = new Date(dateString);
+
+	if (Number.isNaN(date.getTime())) {
+		return "SINCE YOU GOT STARTED";
+	}
+
+	return `SINCE ${date.toLocaleDateString("en-US", {
+		month: "long",
+		day: "numeric",
+		year: "numeric",
+	}).toUpperCase()}`;
+}
+
+function buildShareText(
+	startedAtLabel: string,
+	totalBottles: number,
+	totalDonatedUsd: number,
+) {
+	const bottleText = formatBottleCount(totalBottles);
+
+	return `${startedAtLabel.replace("SINCE ", "Since ")}, I've consumed ${bottleText} bottles through my AI usage and helped donate $${formatUsd(
+		totalDonatedUsd,
+	)} to Planet Water using Bottle It Back.`;
 }
 
 function openPopup(url: string) {
 	window.open(url, "_blank", "noopener,noreferrer");
 }
+
 
 export default function HistoryView({
 	stats,
@@ -55,14 +84,15 @@ export default function HistoryView({
 
 	const totalMl = getTotalTrackedMl(stats);
 	const totalBottles = getBottleCount(totalMl, settings.bottleCapacityMl);
-	const totalUsdEquivalent = getUsdEquivalent(
-		totalBottles,
-		settings.usdPerBottle,
+	const totalDonatedUsd = Math.max(0, stats.totalDonatedUsd ?? 0);
+
+	const startedAtLabel = formatSinceDate(
+		stats.onboardedAt ?? stats.installedAt ?? null,
 	);
 
 	const shareText = useMemo(
-		() => buildShareText(totalMl, totalBottles, totalUsdEquivalent),
-		[totalMl, totalBottles, totalUsdEquivalent],
+		() => buildShareText(startedAtLabel, totalBottles, totalDonatedUsd),
+		[startedAtLabel, totalBottles, totalDonatedUsd],
 	);
 
 	return (
@@ -85,35 +115,30 @@ export default function HistoryView({
 					</button>
 				</div>
 
-				<p className="history-card__eyebrow">TOTAL HISTORY</p>
-				<p className="history-card__title">You have consumed</p>
+				<p className="history-card__since">{startedAtLabel}</p>
+				<p className="history-card__title">YOU HAVE CONSUMED</p>
 
-				<div className="history-card__hero-stat">
-					<div className="history-card__bottle-glyph" aria-hidden="true">
-						💧
+				<div className="history-total-card">
+					<div className="history-total-card__icon">
+						<img src={bottleIcon} alt="" aria-hidden="true" className="history-total-card__bottle" />
 					</div>
 
-					<div className="history-card__hero-text">
-						<p className="history-card__hero-value">
+					<div className="history-total-card__text">
+						<p className="history-total-card__value">
 							{formatBottleCount(totalBottles)}
 						</p>
-						<p className="history-card__hero-unit">bottles</p>
+						<p className="history-total-card__unit">bottles</p>
 					</div>
 				</div>
 
-				<p className="history-card__supporting-text">
-					That’s about {Math.round(totalMl).toLocaleString()} mL tracked across
-					your supported AI usage.
-				</p>
+				<div className="history-donated-card">
+					<p className="history-donated-card__label">YOU HAVE DONATED</p>
 
-				<div className="history-card__impact-box">
-					<p className="history-card__impact-label">EQUIVALENT TO</p>
-
-					<div className="history-card__impact-amount-box">
-						<span className="history-card__impact-amount">
-							{totalUsdEquivalent.toFixed(2)}
+					<div className="history-donated-card__amount-row">
+						<span className="history-donated-card__amount">
+							{formatUsd(totalDonatedUsd)}
 						</span>
-						<span className="history-card__impact-currency"> USD</span>
+						<span className="history-donated-card__currency">USD</span>
 					</div>
 				</div>
 
@@ -128,7 +153,6 @@ export default function HistoryView({
 		</section>
 	);
 }
-
 type ShareBoxProps = {
 	shareText: string;
 	onClose: () => void;
@@ -146,55 +170,50 @@ function ShareBox({ shareText, onClose }: ShareBoxProps) {
 			console.error("Failed to copy share text", error);
 		}
 	}
-
-	async function handleNativeShare() {
-		if (!navigator.share) {
-			await handleCopy();
-			return;
-		}
+	
+	async function shareToFacebook() {
+		const shareUrl = "https://chromewebstore.google.com/";
 
 		try {
-			await navigator.share({
-				title: "Bottle It Back",
-				text: shareText,
-			});
+			await navigator.clipboard.writeText(shareText);
 		} catch (error) {
-			console.error("Native share cancelled or failed", error);
+			console.error("Failed to copy share text before Facebook share", error);
 		}
+
+		openPopup(
+			`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(
+				shareUrl,
+			)}`,
+		);
 	}
 
-	function shareToX() {
+	function shareToTwitter() {
 		openPopup(
 			`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}`,
 		);
 	}
 
-	function shareToTelegram() {
+	function shareToLinkedIn() {
 		openPopup(
-			`https://t.me/share/url?url=&text=${encodeURIComponent(shareText)}`,
+			`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(
+				"https://chromewebstore.google.com/",
+			)}&summary=${encodeURIComponent(shareText)}`,
 		);
 	}
 
-	function shareByEmail() {
-		window.location.href = `mailto:?subject=${encodeURIComponent(
-			"Bottle It Back",
-		)}&body=${encodeURIComponent(shareText)}`;
-	}
-
 	return (
-		<div className="history-share-overlay" role="dialog" aria-modal="true">
-			<div className="history-share-box">
+		<div
+			className="history-share-overlay"
+			role="dialog"
+			aria-modal="true"
+			onClick={onClose}
+		>
+			<div
+				className="history-share-box"
+				onClick={(event) => event.stopPropagation()}
+			>
 				<div className="history-share-box__top">
 					<p className="history-share-box__title">SHARE THE CAUSE</p>
-
-					<button
-						type="button"
-						className="history-share-box__close"
-						onClick={onClose}
-						aria-label="Close share box"
-					>
-						✕
-					</button>
 				</div>
 
 				<div className="history-share-box__message">
@@ -204,42 +223,42 @@ function ShareBox({ shareText, onClose }: ShareBoxProps) {
 				<div className="history-share-box__actions">
 					<button
 						type="button"
-						className="history-share-box__action"
-						onClick={handleNativeShare}
+						className="history-share-box__icon-action"
+						onClick={shareToFacebook}
+						aria-label="Share to Facebook"
+						title="Facebook"
 					>
-						Share
+						<img src={facebook} alt="" aria-hidden="true" />
 					</button>
 
 					<button
 						type="button"
-						className="history-share-box__action"
+						className="history-share-box__icon-action"
+						onClick={shareToTwitter}
+						aria-label="Share to Twitter"
+						title="Twitter"
+					>
+						<img src={twitter} alt="" aria-hidden="true" />
+					</button>
+
+					<button
+						type="button"
+						className="history-share-box__icon-action"
+						onClick={shareToLinkedIn}
+						aria-label="Share to LinkedIn"
+						title="LinkedIn"
+					>
+						<img src={linkedin} alt="" aria-hidden="true" />
+					</button>
+
+					<button
+						type="button"
+						className="history-share-box__icon-action"
 						onClick={handleCopy}
+						aria-label="Copy share text"
+						title={copied ? "Copied!" : "Copy"}
 					>
-						{copied ? "Copied!" : "Copy"}
-					</button>
-
-					<button
-						type="button"
-						className="history-share-box__action"
-						onClick={shareToX}
-					>
-						X
-					</button>
-
-					<button
-						type="button"
-						className="history-share-box__action"
-						onClick={shareToTelegram}
-					>
-						Telegram
-					</button>
-
-					<button
-						type="button"
-						className="history-share-box__action"
-						onClick={shareByEmail}
-					>
-						Email
+						<img src={copy} alt="" aria-hidden="true" />
 					</button>
 				</div>
 			</div>

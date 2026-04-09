@@ -42,7 +42,6 @@ export interface SiteStats {
   waterMl: number;
   lastSeenAt: string | null;
 }
-
 export interface TrackerStats {
   todayMl: number;
   monthlyMl: number;
@@ -56,10 +55,18 @@ export interface TrackerStats {
   totalDonationsCount: number;
   lastDonationAt: string | null;
 
+  installedAt: string | null;
+  onboardedAt: string | null;
+
   updatedAt: string | null;
   lastDailyResetDate: string | null;
   lastMonthlyResetKey: string | null;
   sites: Partial<Record<SiteKey, SiteStats>>;
+}
+
+export interface MarkOnboardedMessage {
+  type: "MARK_ONBOARDED";
+  timestamp: string;
 }
 
 export interface MessageBase {
@@ -111,7 +118,8 @@ export type CommandMessage =
   | ResetStatsMessage
   | UpdateSettingsMessage
   | DonationStartedMessage
-  | DonationCompletedMessage;
+  | DonationCompletedMessage
+  | MarkOnboardedMessage;
 
 export type TrackerMessage = TrackingEventMessage | CommandMessage;
 

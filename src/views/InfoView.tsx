@@ -1,8 +1,8 @@
 import logo from "../assets/logo.svg";
 
-type InfoViewProps = {
-  onGetStarted?: () => void | Promise<void>;
-};
+// type InfoViewProps = {
+//   onGetStarted?: () => void | Promise<void>;
+// };
 
 export function ChatGPT({ color = "#2f6b98" }: { color?: string }) {
   return (
@@ -465,8 +465,8 @@ const PLATFORM_LOGOS = [
   { label: "perplexity", Component: Perplexity },
 ];
 
-export default function InfoView({ onGetStarted }: InfoViewProps) {
-  const isOnboarding = typeof onGetStarted === "function";
+export default function InfoView() {
+  // const isOnboarding = typeof onGetStarted === "function";
 
   return (
     <section className="info-view">
@@ -507,19 +507,9 @@ export default function InfoView({ onGetStarted }: InfoViewProps) {
           what they use by giving back the amount of water they use to{" "}
           <strong>planet-water.org.</strong>
         </p>
-
-        {isOnboarding && (
-          <button
-            type="button"
-            className="info-view__cta"
-            onClick={() => void onGetStarted?.()}
-          >
-            GET STARTED
-          </button>
-        )}
       </div>
 
-      {isOnboarding && (
+      {/* {isOnboarding && (
         <div className="info-view__mock-nav" aria-hidden="true">
           <div className="info-view__mock-nav-item">
             <CalendarIcon />
@@ -531,7 +521,7 @@ export default function InfoView({ onGetStarted }: InfoViewProps) {
             <BulbIcon />
           </div>
         </div>
-      )}
+      )} */}
     </section>
   );
 }

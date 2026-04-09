@@ -92,10 +92,14 @@ export default function UsageTodayView({
 					currentMl={currentMl}
 					maxMl={bottleCapacityMl}
 					animateOnMount
-					className="bottle"
+					className={`bottle ${
+						settings.trackingEnabled
+							? "app-shell"
+							: "app-shell app-shell--paused"
+					}`}
 				/>
 
-				<div className="usage-today-stats">
+				<div className={`usage-today-stats ${settings.trackingEnabled ? "" : "app-shell--paused"}`}>
 					<p className="usage-today-stats__label">TOTAL</p>
 
 					<div className="usage-today-stats__amount-box">
@@ -113,7 +117,8 @@ export default function UsageTodayView({
 
 			<div>
 				<button
-					className="reset-button"
+					className={`reset-button ${settings.trackingEnabled ? "" : "app-shell--paused"}`}
+					type="button"
 					onClick={onResetAiWaterFootprint}
 				>
 					RESET AI WATER FOOTPRINT

@@ -1,0 +1,132 @@
+{
+  "manifest_version": 3,
+  "name": "Bottle It Back - AI Water Tracker",
+  "version": "1.0.0",
+  "description": "Tracks supported AI websites and estimates water consumption from visits, prompts, and active time. In partnership with Planet Water Foundation",
+  "permissions": [
+    "storage",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://chatgpt.com/*",
+    "https://chat.openai.com/*",
+    "https://openai.com/*",
+    "https://sora.com/*",
+    "https://gemini.google.com/*",
+    "https://aistudio.google.com/*",
+    "https://claude.ai/*",
+    "https://www.perplexity.ai/*",
+    "https://perplexity.ai/*",
+    "https://meta.ai/*",
+    "https://www.meta.ai/*",
+    "https://ai.meta.com/*",
+    "https://grok.com/*",
+    "https://www.grok.com/*",
+    "https://x.ai/*",
+    "https://x.com/*",
+    "https://www.x.com/*",
+    "https://copilot.microsoft.com/*",
+    "https://www.deepseek.com/*",
+    "https://chat.deepseek.com/*",
+    "https://donate.planet-water.org/*"
+  ],
+  "background": {
+    "service_worker": "service-worker-loader.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Bottle It Back - AI Water Tracker",
+    "default_popup": "index.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_scripts": [
+    {
+      "js": [
+        "assets/content.ts-loader-BxaQB2B5.js"
+      ],
+      "matches": [
+        "https://chatgpt.com/*",
+        "https://chat.openai.com/*",
+        "https://openai.com/*",
+        "https://sora.com/*",
+        "https://gemini.google.com/*",
+        "https://aistudio.google.com/*",
+        "https://claude.ai/*",
+        "https://www.perplexity.ai/*",
+        "https://perplexity.ai/*",
+        "https://meta.ai/*",
+        "https://www.meta.ai/*",
+        "https://ai.meta.com/*",
+        "https://grok.com/*",
+        "https://www.grok.com/*",
+        "https://x.ai/*",
+        "https://x.com/*",
+        "https://www.x.com/*",
+        "https://copilot.microsoft.com/*",
+        "https://www.deepseek.com/*",
+        "https://chat.deepseek.com/*"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "js": [
+        "assets/donationWatch.ts-loader-YPiTrkdx.js"
+      ],
+      "matches": [
+        "https://donate.planet-water.org/*"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "matches": [
+        "https://ai.meta.com/*",
+        "https://aistudio.google.com/*",
+        "https://chat.deepseek.com/*",
+        "https://chat.openai.com/*",
+        "https://chatgpt.com/*",
+        "https://claude.ai/*",
+        "https://copilot.microsoft.com/*",
+        "https://gemini.google.com/*",
+        "https://grok.com/*",
+        "https://meta.ai/*",
+        "https://openai.com/*",
+        "https://perplexity.ai/*",
+        "https://sora.com/*",
+        "https://www.deepseek.com/*",
+        "https://www.grok.com/*",
+        "https://www.meta.ai/*",
+        "https://www.perplexity.ai/*",
+        "https://www.x.com/*",
+        "https://x.ai/*",
+        "https://x.com/*"
+      ],
+      "resources": [
+        "assets/sites-ClGMra2D.js",
+        "assets/storage-BnU3Ury2.js",
+        "assets/content.ts-Dsl75TE_.js"
+      ],
+      "use_dynamic_url": false
+    },
+    {
+      "matches": [
+        "https://donate.planet-water.org/*"
+      ],
+      "resources": [
+        "assets/storage-BnU3Ury2.js",
+        "assets/donationWatch.ts-B4IHjdpZ.js"
+      ],
+      "use_dynamic_url": false
+    }
+  ]
+}

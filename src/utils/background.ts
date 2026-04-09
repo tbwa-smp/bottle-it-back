@@ -71,6 +71,9 @@ function createEmptyStats(): TrackerStats {
     totalDonationsCount: 0,
     lastDonationAt: null,
 
+    installedAt: null,
+    onboardedAt: null,
+
     updatedAt: null,
     lastDailyResetDate: dailyKey,
     lastMonthlyResetKey: monthlyKey,
@@ -153,13 +156,16 @@ async function getStats(): Promise<TrackerStats> {
     sites: stored?.sites ?? {},
   };
 
-  const normalized = normalizeStatsForCurrentPeriod(merged);
+  const withLifecycleDates = ensureLifecycleDates(merged);
+  const normalized = normalizeStatsForCurrentPeriod(withLifecycleDates);
 
   const didChangePeriodState =
     normalized.todayMl !== merged.todayMl ||
     normalized.monthlyMl !== merged.monthlyMl ||
     normalized.lastDailyResetDate !== merged.lastDailyResetDate ||
-    normalized.lastMonthlyResetKey !== merged.lastMonthlyResetKey;
+    normalized.lastMonthlyResetKey !== merged.lastMonthlyResetKey ||
+    normalized.installedAt !== merged.installedAt ||
+    normalized.onboardedAt !== merged.onboardedAt;
 
   if (didChangePeriodState) {
     await setStats(normalized);
@@ -172,6 +178,19 @@ async function setStats(stats: TrackerStats): Promise<void> {
   await chrome.storage.local.set({
     [STORAGE_KEYS.stats]: stats,
   });
+}
+
+function ensureLifecycleDates(
+  stats: TrackerStats,
+  installedTimestamp?: string,
+): TrackerStats {
+  const next = structuredClone(stats);
+
+  if (!next.installedAt) {
+    next.installedAt = installedTimestamp ?? new Date().toISOString();
+  }
+
+  return next;
 }
 
 function ensureSiteStats(
@@ -315,9 +334,9 @@ function applyDonationCompletion(
   return next;
 }
 
-async function initializeStorage(): Promise<void> {
+async function initializeStorage(installedTimestamp?: string): Promise<void> {
   const settings = await getSettings();
-  const stats = await getStats();
+  const stats = ensureLifecycleDates(await getStats(), installedTimestamp);
 
   await Promise.all([setSettings(settings), setStats(stats)]);
 }
@@ -342,6 +361,25 @@ chrome.runtime.onMessage.addListener(
         console.log("[🍾💧 Bottle It Back] Received message", message);
 
         switch (message.type) {
+          case "MARK_ONBOARDED": {
+            const stats = await getStats();
+
+            if (stats.onboardedAt) {
+              sendResponse({ ok: true, stats });
+              return;
+            }
+
+            const nextStats: TrackerStats = {
+              ...stats,
+              onboardedAt: message.timestamp,
+              updatedAt: message.timestamp,
+            };
+
+            await setStats(nextStats);
+            sendResponse({ ok: true, stats: nextStats });
+            return;
+          }
+
           case "PAGE_VISIT": {
             const [stats, settings] = await Promise.all([
               getStats(),
@@ -404,9 +442,17 @@ chrome.runtime.onMessage.addListener(
           }
 
           case "RESET_STATS": {
-            const emptyStats = createEmptyStats();
-            await setStats(emptyStats);
-            sendResponse({ ok: true, stats: emptyStats });
+            const stats = await getStats();
+
+            const nextStats: TrackerStats = {
+              ...stats,
+              todayMl: 0,
+              monthlyMl: 0,
+              updatedAt: new Date().toISOString(),
+            };
+
+            await setStats(nextStats);
+            sendResponse({ ok: true, stats: nextStats });
             return;
           }
 
@@ -459,6 +505,7 @@ chrome.runtime.onMessage.addListener(
             return;
           }
         }
+
       } catch (error) {
         const siteLabel =
           "siteKey" in message

@@ -8,6 +8,7 @@ type MonthlyViewProps = {
 };
 
 const DONATION_URL = "https://donate.planet-water.org/donate-to-planet-water";
+const MONTHLY_RING_GOAL_BOTTLES = 100;
 
 function getTrackedMonthlyMl(stats: TrackerStats): number {
   const statsWithMonthly = stats as TrackerStats & { monthlyMl?: number };
@@ -45,17 +46,17 @@ function getMinimumDonationBottles(
   actualMonthlyBottles: number,
   donationThresholdBottles: number,
 ): number {
-  const roundedActual =
+  const actualUsageFloor =
     actualMonthlyBottles > 0 ? Math.ceil(actualMonthlyBottles) : 0;
 
-  return Math.max(donationThresholdBottles, roundedActual, 1);
+  return Math.max(donationThresholdBottles, actualUsageFloor, 1);
 }
 
 async function openDonationPage(
   selectedDonationBottles: number,
   usdPerBottle: number,
 ) {
-  const usd = selectedDonationBottles * usdPerBottle;
+  const usd = Number((selectedDonationBottles * usdPerBottle).toFixed(2));
 
   try {
     await chrome.runtime.sendMessage({
@@ -80,7 +81,7 @@ async function openDonationPage(
   window.open(DONATION_URL, "_blank", "noopener,noreferrer");
 }
 
-function HistoryIcon({ color = "#2f6b98"}: { color?: string }) {
+function HistoryIcon({ color = "#2f6b98" }: { color?: string }) {
   return (
     <svg
       width="25"
@@ -138,7 +139,9 @@ export default function MonthlyView({
   );
 
   useEffect(() => {
-    setSelectedDonationBottles(minimumDonationBottles);
+    setSelectedDonationBottles((current) =>
+      Math.max(current, minimumDonationBottles),
+    );
   }, [minimumDonationBottles]);
 
   const donationUsdTotal = getUsdTotal(
@@ -146,11 +149,9 @@ export default function MonthlyView({
     settings.usdPerBottle,
   );
 
-  const monthlyRingGoalBottles = Math.max(settings.donationThresholdBottles, 1);
-
   const progressRatio = Math.max(
     0,
-    Math.min(monthlyBottles / monthlyRingGoalBottles, 1),
+    Math.min(monthlyBottles / MONTHLY_RING_GOAL_BOTTLES, 1),
   );
 
   const ringSize = 225;
@@ -158,6 +159,8 @@ export default function MonthlyView({
   const radius = (ringSize - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const progressOffset = circumference * (1 - progressRatio);
+
+  const canDecrease = selectedDonationBottles > minimumDonationBottles;
 
   function decrementDonationBottles() {
     setSelectedDonationBottles((current) =>
@@ -224,6 +227,7 @@ export default function MonthlyView({
             </p>
             <p className="monthly-ring__unit">bottles</p>
           </div>
+
           <div className="monthly-history-trigger-wrap">
             <button
               type="button"
@@ -272,6 +276,7 @@ export default function MonthlyView({
             className="monthly-stepper__arrow"
             onClick={decrementDonationBottles}
             aria-label="Decrease donation bottles"
+            disabled={!canDecrease}
           >
             ◀
           </button>

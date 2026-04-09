@@ -176,8 +176,8 @@ export default function Bottle({
       </g>
 
       {/* Labels */}
-      <text x={VIEW_WIDTH / 2} y={VIEW_HEIGHT - 1080} textAnchor="middle" fill="#2f6b98" fontSize="56" fontWeight="700">USAGE TODAY</text>
-      <text x={VIEW_WIDTH / 2} y={VIEW_HEIGHT - 960} textAnchor="middle" fill="#2f6b98" fontSize="110" fontWeight="700">{Math.round(displayMl)} mL</text>
+      <text x={VIEW_WIDTH / 2} y={VIEW_HEIGHT - 1120} textAnchor="middle" fill="#2f6b98" fontSize="75" fontWeight="700">USAGE TODAY</text>
+      <text x={VIEW_WIDTH / 2} y={VIEW_HEIGHT - 960} textAnchor="middle" fill="#2f6b98" fontSize="150" fontWeight="700">{Math.round(displayMl)} mL</text>
     </svg>
   );
 }

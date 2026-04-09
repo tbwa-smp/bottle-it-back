@@ -13,6 +13,12 @@ const EMPTY_STATS: TrackerStats = {
   monthlyMl: 0,
   lastDailyResetDate: null,
   lastMonthlyResetKey: null,
+  totalDonatedUsd: 0,
+  totalDonatedBottles: 0,
+  totalDonationsCount: 0,
+  lastDonationAt: null,
+  installedAt: null,
+  onboardedAt: null
 };
 
 function hasChromeStorage() {

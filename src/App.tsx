@@ -74,12 +74,18 @@ export default function App() {
 				await chrome.storage.local.set({
 					[STORAGE_KEYS.hasCompletedOnboarding]: true,
 				});
+
+				if (chrome.runtime?.sendMessage) {
+					await chrome.runtime.sendMessage({
+						type: "MARK_ONBOARDED",
+						timestamp: new Date().toISOString(),
+					});
+				}
 			}
 
 			setHasCompletedOnboarding(true);
 			setActiveTab("usage");
 			setIsInfoOpen(false);
-			setIsHistoryOpen(false);
 		} catch (error) {
 			console.error("Failed to save onboarding state", error);
 		}
@@ -162,7 +168,10 @@ export default function App() {
 
 	return (
 		<main className="app-shell">
-			<header className="app-header">
+			<header className={`app-header ${
+				settings.trackingEnabled
+					? "app-shell"
+					: "app-shell app-shell--paused"}`}>
 				<div className="app-info-trigger-wrap">
 					{!isInfoOpen && hasCompletedOnboarding && (
 						<img src={logo} alt="Bottle It Back" className="app-logo" />
