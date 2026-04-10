@@ -22,6 +22,28 @@ type BackgroundResponse =
   | { ok: true; stats?: TrackerStats; settings?: WaterModelSettings }
   | { ok: false; error: string };
 
+const ACTION_ICONS_ENABLED = {
+  16: "icons/icon16.png",
+  32: "icons/icon32.png",
+};
+
+const ACTION_ICONS_DISABLED = {
+  16: "icons/icon16-disabled.png",
+  32: "icons/icon32-disabled.png",
+};
+
+async function syncActionIcon(trackingEnabled: boolean): Promise<void> {
+  if (!chrome.action?.setIcon) return;
+
+  try {
+    await chrome.action.setIcon({
+      path: trackingEnabled ? ACTION_ICONS_ENABLED : ACTION_ICONS_DISABLED,
+    });
+  } catch (error) {
+    console.error("[🍾💧 Bottle It Back] failed to sync action icon", error);
+  }
+}
+
 function getCurrentTimeZone(): string | undefined {
   try {
     return Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -111,6 +133,19 @@ function normalizeSettings(
   return next;
 }
 
+function ensureLifecycleDates(
+  stats: TrackerStats,
+  installedTimestamp?: string,
+): TrackerStats {
+  const next = structuredClone(stats);
+
+  if (!next.installedAt) {
+    next.installedAt = installedTimestamp ?? new Date().toISOString();
+  }
+
+  return next;
+}
+
 function normalizeStatsForCurrentPeriod(stats: TrackerStats): TrackerStats {
   const next = structuredClone(stats);
   const { dailyKey, monthlyKey } = getCurrentDateKeys();
@@ -178,19 +213,6 @@ async function setStats(stats: TrackerStats): Promise<void> {
   await chrome.storage.local.set({
     [STORAGE_KEYS.stats]: stats,
   });
-}
-
-function ensureLifecycleDates(
-  stats: TrackerStats,
-  installedTimestamp?: string,
-): TrackerStats {
-  const next = structuredClone(stats);
-
-  if (!next.installedAt) {
-    next.installedAt = installedTimestamp ?? new Date().toISOString();
-  }
-
-  return next;
 }
 
 function ensureSiteStats(
@@ -338,16 +360,34 @@ async function initializeStorage(installedTimestamp?: string): Promise<void> {
   const settings = await getSettings();
   const stats = ensureLifecycleDates(await getStats(), installedTimestamp);
 
-  await Promise.all([setSettings(settings), setStats(stats)]);
+  await Promise.all([
+    setSettings(settings),
+    setStats(stats),
+    syncActionIcon(settings.trackingEnabled),
+  ]);
 }
 
 chrome.runtime.onInstalled.addListener(() => {
   console.log("[🍾💧 Bottle It Back] onInstalled fired");
-  void initializeStorage();
+  void initializeStorage(new Date().toISOString());
 });
 
 chrome.runtime.onStartup.addListener(() => {
   void initializeStorage();
+});
+
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName !== "local" || !changes[STORAGE_KEYS.settings]) {
+    return;
+  }
+
+  const nextSettings = normalizeSettings(
+    changes[STORAGE_KEYS.settings].newValue as
+      | Partial<WaterModelSettings>
+      | undefined,
+  );
+
+  void syncActionIcon(nextSettings.trackingEnabled);
 });
 
 chrome.runtime.onMessage.addListener(
@@ -361,25 +401,6 @@ chrome.runtime.onMessage.addListener(
         console.log("[🍾💧 Bottle It Back] Received message", message);
 
         switch (message.type) {
-          case "MARK_ONBOARDED": {
-            const stats = await getStats();
-
-            if (stats.onboardedAt) {
-              sendResponse({ ok: true, stats });
-              return;
-            }
-
-            const nextStats: TrackerStats = {
-              ...stats,
-              onboardedAt: message.timestamp,
-              updatedAt: message.timestamp,
-            };
-
-            await setStats(nextStats);
-            sendResponse({ ok: true, stats: nextStats });
-            return;
-          }
-
           case "PAGE_VISIT": {
             const [stats, settings] = await Promise.all([
               getStats(),
@@ -464,6 +485,7 @@ chrome.runtime.onMessage.addListener(
             };
 
             await setSettings(nextSettings);
+            await syncActionIcon(nextSettings.trackingEnabled);
             sendResponse({ ok: true, settings: nextSettings });
             return;
           }
@@ -492,10 +514,33 @@ chrome.runtime.onMessage.addListener(
               return;
             }
 
-            const nextStats = applyDonationCompletion(stats, pendingDonation, message.timestamp);
+            const nextStats = applyDonationCompletion(
+              stats,
+              pendingDonation,
+              message.timestamp,
+            );
 
             await Promise.all([setStats(nextStats), clearPendingDonation()]);
 
+            sendResponse({ ok: true, stats: nextStats });
+            return;
+          }
+
+          case "MARK_ONBOARDED": {
+            const stats = await getStats();
+
+            if (stats.onboardedAt) {
+              sendResponse({ ok: true, stats });
+              return;
+            }
+
+            const nextStats: TrackerStats = {
+              ...stats,
+              onboardedAt: message.timestamp,
+              updatedAt: message.timestamp,
+            };
+
+            await setStats(nextStats);
             sendResponse({ ok: true, stats: nextStats });
             return;
           }
@@ -505,7 +550,6 @@ chrome.runtime.onMessage.addListener(
             return;
           }
         }
-
       } catch (error) {
         const siteLabel =
           "siteKey" in message

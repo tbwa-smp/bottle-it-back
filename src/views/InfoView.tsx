@@ -507,12 +507,16 @@ export default function InfoView() {
         </div>
 
         <p className="info-view__copy info-view__copy--footer">
-          Most importantly, it is the only program that allows users to offset what they use by giving back the amount of water they use to <strong>Planet Water Foundation</strong>
+          Most importantly, it is the only program that allows users to offset what they use by giving back the amount of water they use to <strong>Planet Water Foundation</strong>, a non-profit organization providing safe water access to communities in need across 33 countries.
         </p>
       </div>
-      <button className="reset-button" onClick={openPopup}>
-        Visit planet-water.org
-      </button>
+      <div style={{ textAlign: "center"}}>
+        <button className="reset-button" onClick={openPopup} style={{ marginBottom: "12px"}}>
+          Visit planet-water.org
+        </button>
+        <p style={{ fontSize: "0.8em"}}>1 prompt = approx. 38ml</p>
+        <p style={{ fontSize: "0.2em"}}>Source: Data from Jaham et al., Google</p>
+      </div>
       <img src={planetWater} alt="Planet Water Foundation" className="info-view__pw-logo" style={{
         width: "100%",
         maxWidth: "50px",

@@ -550,14 +550,12 @@
 	gap: 1em;
 }
 
-.info-view__brand-block p {}
-
 .info-view__brand-block img {
 	width: 120px;
 }
 
 .info-view__headline {
-	font-size: 1.4em;
+	font-size: 1.2em;
 	text-align: center;
 	width: 140px;
 	padding-bottom: 12px;
@@ -598,13 +596,14 @@
 
 .info-view__copy--footer {
 	font-weight: 400;
+	font-size: 1em;
 }
 
 .info-view__platform-logos {
     display: flex;
     align-items: flex-end;
     justify-content: center;
-    padding: 10px;
+    padding: 0px 0px 10px;
     border-radius: 14px;
     width: 100%;
     flex-wrap: wrap;
@@ -1188,6 +1187,15 @@
   margin: 0;
   color: #5a7f9b;
   line-height: 1.35;
+  white-space: pre-wrap;
+  text-align: center;
+  font-size: 0.8em;
+}
+
+.history-share-box__link-preview {
+  font-weight: 700;
+  color: #2f6b98;
+  word-break: break-word;
 }
 
 .history-share-box__actions {
