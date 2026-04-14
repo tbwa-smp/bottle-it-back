@@ -97,13 +97,15 @@ function getDonationPayload(
 
 async function openDonationPage(bottles: number, usd: number) {
   try {
-    await chrome.runtime.sendMessage({
-      type: "DONATION_STARTED",
-      bottles,
-      usd,
-      source: "monthly",
-      timestamp: new Date().toISOString(),
-    });
+    if (typeof chrome !== "undefined" && chrome.runtime?.sendMessage) {
+      await chrome.runtime.sendMessage({
+        type: "DONATION_STARTED",
+        bottles,
+        usd,
+        source: "monthly",
+        timestamp: new Date().toISOString(),
+      });
+    }
   } catch (error) {
     console.error(
       "[🍾💧 Bottle It Back] failed to store pending donation",
@@ -208,6 +210,25 @@ export default function MonthlyView({
   const circumference = 2 * Math.PI * radius;
   const progressOffset = circumference * (1 - progressRatio);
 
+  // --- REFINED ANIMATION TRIGGER ---
+  const [animatedOffset, setAnimatedOffset] = useState(circumference);
+
+  useEffect(() => {
+    // Reset to full circumference whenever the goal or usage changes
+    setAnimatedOffset(circumference);
+    
+    // Double RAF ensures the reset is rendered before the growth starts
+    const frame1 = requestAnimationFrame(() => {
+      const frame2 = requestAnimationFrame(() => {
+        setAnimatedOffset(progressOffset);
+      });
+      return () => cancelAnimationFrame(frame2);
+    });
+
+    return () => cancelAnimationFrame(frame1);
+  }, [progressOffset, circumference]);
+  // ----------------------------------
+
   const canDecrease = selectedDonationBottles > minimumDonationBottles;
 
   function decrementDonationBottles() {
@@ -263,7 +284,11 @@ export default function MonthlyView({
               stroke={`url(#monthlyRingGradient-${gradientId})`}
               strokeLinecap="round"
               strokeDasharray={circumference}
-              strokeDashoffset={progressOffset}
+              strokeDashoffset={animatedOffset}
+              style={{
+                // Ensure there is a duration and timing function defined
+                transition: "stroke-dashoffset 1.2s cubic-bezier(0.34, 1.56, 0.64, 1)",
+              }}
               transform={`rotate(-90 ${ringSize / 2} ${ringSize / 2})`}
             />
           </svg>
