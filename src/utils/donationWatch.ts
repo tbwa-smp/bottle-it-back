@@ -10,6 +10,7 @@ const SUCCESS_MARKERS = [
   "receipt will be sent",
   "thank you for your donation",
   "donation successful",
+  "thank you for your support",
   "thank you",
 ];
 
@@ -26,7 +27,7 @@ function getThankYouHeadingFromShadowDom(): string {
   ) as HTMLElement | null;
 
   const heading = widget?.shadowRoot
-    ?.querySelector("header.thankyou > h1#page_title")
+    ?.querySelector("#page_thank_you > div > span > p")
     ?.textContent
     ?.trim()
     ?.toLowerCase();

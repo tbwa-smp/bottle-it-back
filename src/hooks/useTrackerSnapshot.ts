@@ -18,11 +18,55 @@ const EMPTY_STATS: TrackerStats = {
   totalDonationsCount: 0,
   lastDonationAt: null,
   installedAt: null,
-  onboardedAt: null
+  onboardedAt: null,
 };
 
 function hasChromeStorage() {
   return typeof chrome !== "undefined" && !!chrome.storage?.local;
+}
+
+function normalizeStats(
+  partial?: Partial<TrackerStats> | null,
+): TrackerStats {
+  return {
+    ...EMPTY_STATS,
+    ...partial,
+    sites: partial?.sites ?? {},
+    todayMl:
+      typeof partial?.todayMl === "number" ? partial.todayMl : EMPTY_STATS.todayMl,
+    monthlyMl:
+      typeof partial?.monthlyMl === "number"
+        ? partial.monthlyMl
+        : EMPTY_STATS.monthlyMl,
+    totalVisits:
+      typeof partial?.totalVisits === "number"
+        ? partial.totalVisits
+        : EMPTY_STATS.totalVisits,
+    totalPrompts:
+      typeof partial?.totalPrompts === "number"
+        ? partial.totalPrompts
+        : EMPTY_STATS.totalPrompts,
+    totalActiveSeconds:
+      typeof partial?.totalActiveSeconds === "number"
+        ? partial.totalActiveSeconds
+        : EMPTY_STATS.totalActiveSeconds,
+    totalWaterMl:
+      typeof partial?.totalWaterMl === "number"
+        ? partial.totalWaterMl
+        : EMPTY_STATS.totalWaterMl,
+    totalDonatedUsd:
+      typeof partial?.totalDonatedUsd === "number"
+        ? partial.totalDonatedUsd
+        : EMPTY_STATS.totalDonatedUsd,
+    totalDonatedBottles:
+      typeof partial?.totalDonatedBottles === "number"
+        ? partial.totalDonatedBottles
+        : EMPTY_STATS.totalDonatedBottles,
+    totalDonationsCount:
+      typeof partial?.totalDonationsCount === "number"
+        ? partial.totalDonationsCount
+        : EMPTY_STATS.totalDonationsCount,
+  };
 }
 
 export function useTrackerSnapshot() {
@@ -48,12 +92,16 @@ export function useTrackerSnapshot() {
         if (cancelled) return;
 
         setStats(
-          (result[STORAGE_KEYS.stats] as TrackerStats | undefined) ?? EMPTY_STATS,
+          normalizeStats(
+            result[STORAGE_KEYS.stats] as Partial<TrackerStats> | undefined,
+          ),
         );
 
         setSettings({
           ...DEFAULT_SETTINGS,
-          ...(result[STORAGE_KEYS.settings] as Partial<WaterModelSettings> | undefined),
+          ...(result[STORAGE_KEYS.settings] as
+            | Partial<WaterModelSettings>
+            | undefined),
         });
 
         setReady(true);
@@ -70,7 +118,13 @@ export function useTrackerSnapshot() {
       if (areaName !== "local") return;
 
       if (changes[STORAGE_KEYS.stats]) {
-        setStats((changes[STORAGE_KEYS.stats].newValue as TrackerStats | undefined) ?? EMPTY_STATS);
+        setStats(
+          normalizeStats(
+            changes[STORAGE_KEYS.stats].newValue as
+              | Partial<TrackerStats>
+              | undefined,
+          ),
+        );
       }
 
       if (changes[STORAGE_KEYS.settings]) {

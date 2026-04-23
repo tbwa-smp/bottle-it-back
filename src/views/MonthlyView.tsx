@@ -13,13 +13,14 @@ const MINIMUM_DONATION_USD = 1;
 const MINIMUM_DONATION_BOTTLES = 20;
 
 function getTrackedMonthlyMl(stats: TrackerStats): number {
-  const statsWithMonthly = stats as TrackerStats & { monthlyMl?: number };
+  // const statsWithMonthly = stats as TrackerStats & { monthlyMl?: number };
 
-  if (typeof statsWithMonthly.monthlyMl === "number") {
-    return Math.max(0, statsWithMonthly.monthlyMl);
-  }
+  // if (typeof statsWithMonthly.monthlyMl === "number") {
+  //   return Math.max(0, statsWithMonthly.monthlyMl);
+  // }
 
-  return Math.max(0, stats.totalWaterMl);
+  // return Math.max(0, stats.totalWaterMl);
+  return typeof stats.monthlyMl === "number" ? Math.max(0, stats.monthlyMl) : 0;
 }
 
 function getBottleCount(totalMl: number, bottleCapacityMl: number): number {
@@ -178,16 +179,16 @@ export default function MonthlyView({
     minimumDonationBottles,
   );
 
+  // useEffect(() => {
+  //   setSelectedDonationBottles((current) =>
+  //     Math.max(current, minimumDonationBottles),
+  //   );
+  // }, [minimumDonationBottles]);
   useEffect(() => {
-    setSelectedDonationBottles((current) =>
-      Math.max(current, minimumDonationBottles),
-    );
+    setSelectedDonationBottles(minimumDonationBottles);
   }, [minimumDonationBottles]);
 
-  const equivalentUsdTotal = getUsdTotal(
-    monthlyBottles,
-    settings.usdPerBottle,
-  );
+  const equivalentUsdTotal = getUsdTotal(monthlyBottles, settings.usdPerBottle);
 
   const donationPayload = useMemo(
     () =>
@@ -216,7 +217,7 @@ export default function MonthlyView({
   useEffect(() => {
     // Reset to full circumference whenever the goal or usage changes
     setAnimatedOffset(circumference);
-    
+
     // Double RAF ensures the reset is rendered before the growth starts
     const frame1 = requestAnimationFrame(() => {
       const frame2 = requestAnimationFrame(() => {
@@ -287,7 +288,8 @@ export default function MonthlyView({
               strokeDashoffset={animatedOffset}
               style={{
                 // Ensure there is a duration and timing function defined
-                transition: "stroke-dashoffset 1.2s cubic-bezier(0.34, 1.56, 0.64, 1)",
+                transition:
+                  "stroke-dashoffset 1.2s cubic-bezier(0.34, 1.56, 0.64, 1)",
               }}
               transform={`rotate(-90 ${ringSize / 2} ${ringSize / 2})`}
             />
