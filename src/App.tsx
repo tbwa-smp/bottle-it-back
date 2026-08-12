@@ -20,7 +20,7 @@ import Tabs, { type TabKey } from "./components/Tabs";
 // import { getDonationStats } from "./utils/stats";
 
 const PLANET_WATER_URL =
-	"https://donate.planet-water.org/donate-to-planet-water";
+	"https://donorbox.org/bottle-it-back";
 
 const RESET_DONATION_THRESHOLD_BOTTLES = 20;
 
@@ -187,6 +187,7 @@ export default function App() {
 					{!isInfoOpen && hasCompletedOnboarding && (
 						<img src={logo} alt="Bottle It Back" className="app-logo" />
 					)}
+					<h1>HELLO</h1>
 					<button
 						type="button"
 						className={

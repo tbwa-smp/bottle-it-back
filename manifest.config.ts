@@ -30,6 +30,8 @@ export default defineManifest({
     "https://www.deepseek.com/*",
     "https://chat.deepseek.com/*",
     "https://donate.planet-water.org/*",
+    "https://donorbox.org/bottle-it-back*",
+    "https://api.ecologits.ai/*",
   ],
   background: {
     service_worker: "src/utils/background.ts",
@@ -77,7 +79,10 @@ export default defineManifest({
       run_at: "document_idle",
     },
     {
-      matches: ["https://donate.planet-water.org/*"],
+      matches: [
+        "https://donate.planet-water.org/*",
+        "https://donorbox.org/bottle-it-back*",
+      ],
       js: ["src/utils/donationWatch.ts"],
       run_at: "document_idle",
     },

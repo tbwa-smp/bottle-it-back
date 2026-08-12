@@ -23,7 +23,7 @@ export default defineManifest({
       run_at: "document_idle",
     },
     {
-      matches: ["https://donate.planet-water.org/*"],
+      matches: ["https://donorbox.org/bottle-it-back*"],
       js: ["src/donationWatch.ts"],
       run_at: "document_idle",
     },
