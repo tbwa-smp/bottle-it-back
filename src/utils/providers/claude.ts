@@ -12,6 +12,9 @@ const ASSISTANT_STREAMING_SELECTOR =
 const STOP_BUTTON_SELECTOR =
   'button[aria-label="Stop response"]';
 
+const MODEL_SELECTOR =
+  'button[data-testid="model-selector-dropdown"]';
+
 const POLL_INTERVAL_MS = 500;
 
 const RESPONSE_QUIET_MS = 2000;
@@ -96,6 +99,154 @@ export function createClaudeProvider(
     );
   }
 
+  function estimateOutputTokens(
+    text: string,
+  ): number {
+    const characterCount =
+      Array.from(
+        text,
+      ).length;
+
+    return Math.max(
+      1,
+      Math.ceil(
+        characterCount / 4,
+      ),
+    );
+  }
+
+  function getSelectedModelLabel():
+    string | null {
+    const button =
+      document.querySelector<HTMLElement>(
+        MODEL_SELECTOR,
+      );
+
+    if (!button) {
+      return null;
+    }
+
+    const ariaLabel =
+      button.getAttribute(
+        'aria-label',
+      );
+
+    if (ariaLabel) {
+      const match =
+        ariaLabel.match(
+          /^Model:\s*(.+)$/i,
+        );
+
+      if (match?.[1]) {
+        return match[1].trim();
+      }
+    }
+
+    const text =
+      button.innerText
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    return text || null;
+  }
+
+  function getEcoLogitsModelName(
+    modelLabel: string,
+  ): string | null {
+    const normalized =
+      modelLabel
+        .toLowerCase()
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    if (
+      normalized.includes(
+        'opus 4.8',
+      )
+    ) {
+      return 'claude-opus-4-8';
+    }
+
+    if (
+      normalized.includes(
+        'opus 4.7',
+      )
+    ) {
+      return 'claude-opus-4-7';
+    }
+
+    if (
+      normalized.includes(
+        'opus 4.6',
+      )
+    ) {
+      return 'claude-opus-4-6';
+    }
+
+    if (
+      normalized.includes(
+        'opus 4.5',
+      )
+    ) {
+      return 'claude-opus-4-5';
+    }
+
+    if (
+      normalized.includes(
+        'opus 4.1',
+      )
+    ) {
+      return 'claude-opus-4-1';
+    }
+
+    if (
+      normalized.includes(
+        'opus 4.0',
+      ) ||
+      normalized.includes(
+        'opus 4',
+      )
+    ) {
+      return 'claude-opus-4-0';
+    }
+
+    if (
+      normalized.includes(
+        'sonnet 4.6',
+      )
+    ) {
+      return 'claude-sonnet-4-6';
+    }
+
+    if (
+      normalized.includes(
+        'sonnet 4.5',
+      )
+    ) {
+      return 'claude-sonnet-4-5';
+    }
+
+    if (
+      normalized.includes(
+        'sonnet 4.0',
+      ) ||
+      normalized ===
+        'sonnet 4'
+    ) {
+      return 'claude-sonnet-4-0';
+    }
+
+    if (
+      normalized.includes(
+        'haiku 4.5',
+      )
+    ) {
+      return 'claude-haiku-4-5';
+    }
+
+    return null;
+  }
+
   function isGenerationStillRunning():
     boolean {
     return Boolean(
@@ -135,7 +286,8 @@ export function createClaudeProvider(
       },
     );
 
-    pendingGeneration = null;
+    pendingGeneration =
+      null;
 
     stopPolling();
   }
@@ -195,7 +347,8 @@ export function createClaudeProvider(
     }
 
     const responseText =
-      response.innerText.trim();
+      response.innerText
+        .trim();
 
     if (!responseText) {
       return;
@@ -206,19 +359,9 @@ export function createClaudeProvider(
         response,
       );
 
-    /*
-     * Claude also exposes
-     * data-is-streaming="true"
-     * while the response is
-     * being generated.
-     *
-     * This gives us another
-     * running signal in case
-     * the Stop button appears
-     * between polling intervals.
-     */
     if (
-      streamingState === 'true'
+      streamingState ===
+      'true'
     ) {
       generation.sawRunningSignal =
         true;
@@ -286,7 +429,8 @@ export function createClaudeProvider(
 
     if (
       responseText !==
-      generation.lastResponseText
+      generation
+        .lastResponseText
     ) {
       generation.lastResponseText =
         responseText;
@@ -301,9 +445,11 @@ export function createClaudeProvider(
     }
 
     if (
-      generation.sawRunningSignal &&
+      generation
+        .sawRunningSignal &&
       !generationStillRunning &&
-      streamingState !== 'true' &&
+      streamingState !==
+        'true' &&
       generation
         .completionObservedAt ===
         null
@@ -318,7 +464,8 @@ export function createClaudeProvider(
             (
               generation
                 .completionObservedAt -
-              generation.startedAt
+              generation
+                .startedAt
             ) / 1000,
 
           streamingState,
@@ -328,7 +475,8 @@ export function createClaudeProvider(
 
     const quietFor =
       now -
-      generation.lastTextChangedAt;
+      generation
+        .lastTextChangedAt;
 
     if (
       quietFor <
@@ -344,7 +492,8 @@ export function createClaudeProvider(
     }
 
     if (
-      streamingState === 'true'
+      streamingState ===
+      'true'
     ) {
       return;
     }
@@ -357,20 +506,11 @@ export function createClaudeProvider(
       return;
     }
 
-    /*
-     * Claude may either leave:
-     *
-     * data-is-streaming="false"
-     *
-     * or remove the attribute
-     * entirely after the final
-     * render.
-     *
-     * Both states are valid.
-     */
     if (
-      streamingState !== null &&
-      streamingState !== 'false'
+      streamingState !==
+        null &&
+      streamingState !==
+        'false'
     ) {
       return;
     }
@@ -379,7 +519,8 @@ export function createClaudeProvider(
       (
         generation
           .completionObservedAt -
-        generation.startedAt
+        generation
+          .startedAt
       ) / 1000;
 
     const responseCharacters =
@@ -387,13 +528,72 @@ export function createClaudeProvider(
         responseText,
       ).length;
 
+    const outputTokenCount =
+      estimateOutputTokens(
+        responseText,
+      );
+
+    const selectedModel =
+      getSelectedModelLabel();
+
+    if (!selectedModel) {
+      console.warn(
+        '[🍾💧 Bottle It Back] Claude model could not be detected',
+        {
+          requestLatency,
+          outputTokenCount,
+          responseCharacters,
+        },
+      );
+
+      pendingGeneration =
+        null;
+
+      stopPolling();
+
+      return;
+    }
+
+    const modelName =
+      getEcoLogitsModelName(
+        selectedModel,
+      );
+
+    if (!modelName) {
+      console.warn(
+        '[🍾💧 Bottle It Back] Claude model is not supported by EcoLogits',
+        {
+          selectedModel,
+          requestLatency,
+          outputTokenCount,
+          responseCharacters,
+        },
+      );
+
+      pendingGeneration =
+        null;
+
+      stopPolling();
+
+      return;
+    }
+
     console.log(
       '[🍾💧 Bottle It Back] Claude generation completed',
       {
         provider:
           'anthropic',
 
+        selectedModel,
+
+        modelName,
+
         requestLatency,
+
+        outputTokenCount,
+
+        tokenSource:
+          'estimated',
 
         responseCharacters,
 
@@ -406,21 +606,22 @@ export function createClaudeProvider(
       },
     );
 
-    /*
-     * Do NOT call
-     * context.onComplete()
-     * yet.
-     *
-     * Claude completion and
-     * cancellation are working.
-     *
-     * Next step:
-     * - output token estimate
-     * - model detection
-     * - EcoLogits model mapping
-     */
+    context.onComplete({
+      provider:
+        'anthropic',
 
-    pendingGeneration = null;
+      modelName,
+
+      outputTokenCount,
+
+      requestLatency,
+
+      tokenSource:
+        'estimated',
+    });
+
+    pendingGeneration =
+      null;
 
     stopPolling();
   }
@@ -457,7 +658,8 @@ export function createClaudeProvider(
     );
   }
 
-  function startGeneration(): void {
+  function startGeneration():
+    void {
     if (
       pendingGeneration
     ) {
@@ -507,6 +709,9 @@ export function createClaudeProvider(
         siteKey:
           context.siteKey,
 
+        selectedModel:
+          getSelectedModelLabel(),
+
         responseTextAtStartLength:
           Array.from(
             responseTextAtStart,
@@ -524,7 +729,8 @@ export function createClaudeProvider(
   }
 
   function destroy(): void {
-    pendingGeneration = null;
+    pendingGeneration =
+      null;
 
     stopPolling();
 
