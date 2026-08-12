@@ -187,7 +187,6 @@ export default function App() {
 					{!isInfoOpen && hasCompletedOnboarding && (
 						<img src={logo} alt="Bottle It Back" className="app-logo" />
 					)}
-					<h1>HELLO</h1>
 					<button
 						type="button"
 						className={

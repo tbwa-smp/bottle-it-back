@@ -1,4 +1,5 @@
 import logo from "../assets/logo.svg";
+import ecologits from "../assets/ecologits.png";
 import planetWater from "../assets/planet-water.svg";
 // type InfoViewProps = {
 //   onGetStarted?: () => void | Promise<void>;
@@ -486,7 +487,7 @@ export default function InfoView() {
         </div>
 
         <p className="info-view__copy info-view__copy--lead">
-          It is the only extension that is capable of tracking all AI chat
+          The only extension that is capable of tracking all AI chat
           platforms.
         </p>
 
@@ -507,21 +508,50 @@ export default function InfoView() {
         </div>
 
         <p className="info-view__copy info-view__copy--footer">
-          Most importantly, it is the only program that allows users to offset what they use by giving back the amount of water they use to <strong>Planet Water Foundation</strong>, a non-profit organization providing safe water access to communities in need across 33 countries.
+          Using Ecologits Calculator, the plug-in estimates the Water
+          Consumption Footprint of every prompt, allowing users to offset what
+          they use by giving back the amount to Planet Water Foundation.
         </p>
       </div>
-      <div style={{ textAlign: "center"}}>
-        <button className="reset-button" onClick={openPopup} style={{ marginBottom: "12px"}}>
+      <div style={{ textAlign: "center" }}>
+        <button
+          className="reset-button"
+          onClick={openPopup}
+          style={{ marginBottom: "12px" }}
+        >
           Visit planet-water.org
         </button>
-        <p style={{ fontSize: "0.8em"}}>1 prompt = approx. 38ml</p>
-        <p style={{ fontSize: "0.2em"}}>Source: Data from Jaham et al., Google</p>
+        {/* <p style={{ fontSize: "0.8em"}}>1 prompt = approx. 38ml</p>
+        <p style={{ fontSize: "0.2em"}}>Source: Data from Jaham et al., Google</p> */}
       </div>
-      <img src={planetWater} alt="Planet Water Foundation" className="info-view__pw-logo" style={{
-        width: "100%",
-        maxWidth: "50px",
-        margin: "0 auto"
-      }} />
+      <div
+        style={{
+          margin: "0 auto",
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <img
+          src={planetWater}
+          alt="Planet Water Foundation"
+          className="info-view__pw-logo"
+          style={{
+            width: "100%",
+            maxWidth: "50px",
+          }}
+        />
+        <img
+          src={ecologits}
+          alt="Ecologits"
+          className="info-view__pw-logo"
+          style={{
+            width: "100%",
+            maxWidth: "75px",
+          }}
+        />
+      </div>
     </section>
   );
 }

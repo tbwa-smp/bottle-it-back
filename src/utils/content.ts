@@ -4,7 +4,9 @@
 import { getSiteByHostname } from './sites';
 import { DEFAULT_SETTINGS, STORAGE_KEYS } from './storage';
 import type { PromptSource, TrackerMessage, WaterModelSettings } from './types';
-
+import {
+  createProviderAdapter,
+} from './providers';
 const matchedSite = getSiteByHostname(window.location.hostname);
 
 if (!matchedSite) {
@@ -14,7 +16,6 @@ if (!matchedSite) {
   );
 } else {
   const site = matchedSite;
-
   const PROMPT_DEBOUNCE_MS = 1200;
 
   let lastPromptAt = 0;
@@ -53,6 +54,29 @@ if (!matchedSite) {
     }
   }
 
+  const providerAdapter = createProviderAdapter(
+    site.key,
+    {
+      siteKey: site.key,
+      onComplete: (
+        generation,
+      ) => {
+        void send({
+          type:'AI_RESPONSE_COMPLETE',
+          siteKey: site.key,
+          label: site.label,
+          url: currentUrl(),
+          timestamp: nowIso(),
+          provider: generation.provider,
+          modelName: generation.modelName,
+          outputTokenCount: generation.outputTokenCount,
+          requestLatency: generation.requestLatency,
+          tokenSource: generation.tokenSource,
+        });
+      },
+    },
+  );
+
   async function loadSettings(): Promise<void> {
     const result = await chrome.storage.local.get(STORAGE_KEYS.settings);
 
@@ -82,16 +106,64 @@ if (!matchedSite) {
     );
   }
 
-  function isInteractivePromptTarget(target: EventTarget | null): boolean {
+  // We just need the prompts. Fixed a bug where logging in is confused and being logged as "PROMPT_SUBMIT"
+  function isInteractivePromptTarget(
+    target: EventTarget | null,
+  ): boolean {
     if (!(target instanceof HTMLElement)) {
       return false;
     }
 
-    const element = target.closest(
+    const element = target.closest<HTMLElement>(
       'textarea, input[type="text"], [contenteditable="true"], [role="textbox"]',
     );
 
-    return element instanceof HTMLElement;
+    if (!element) {
+      return false;
+    }
+
+    const form =
+      element.closest('form');
+
+    if (
+      form?.querySelector(
+        'input[type="password"]',
+      )
+    ) {
+      return false;
+    }
+
+    const autocomplete =
+      element
+        .getAttribute('autocomplete')
+        ?.toLowerCase() ?? '';
+
+    if (
+      [
+        'username',
+        'email',
+        'current-password',
+        'new-password',
+        'one-time-code',
+      ].includes(autocomplete)
+    ) {
+      return false;
+    }
+
+    const inputName =
+      element
+        .getAttribute('name')
+        ?.toLowerCase() ?? '';
+
+    if (
+      /(email|username|password|login|signin)/i.test(
+        inputName,
+      )
+    ) {
+      return false;
+    }
+
+    return true;
   }
 
   function trackVisit(): void {
@@ -129,6 +201,8 @@ if (!matchedSite) {
     }
 
     lastPromptAt = now;
+    
+    providerAdapter?.startGeneration();
 
     const message: TrackerMessage = {
       type: 'PROMPT_SUBMIT',
@@ -185,6 +259,15 @@ if (!matchedSite) {
     ]
       .join(' ')
       .toLowerCase();
+
+    // Fix for cancelling a prompt mid think. Sometimes it logs as another prompt
+    if (
+      /\b(stop|cancel)\b/i.test(
+        label,
+      )
+    ) {
+      return false;
+    }
 
     return /(send|submit|generate|ask|go|run|reply|create)/i.test(label);
   }
@@ -279,6 +362,9 @@ if (!matchedSite) {
   });
 
   window.addEventListener('popstate', trackVisit);
+  window.addEventListener('beforeunload', () => {
+    providerAdapter?.destroy();
+  });
   patchHistoryMethod('pushState');
   patchHistoryMethod('replaceState');
 

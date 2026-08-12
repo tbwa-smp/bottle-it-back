@@ -596,7 +596,7 @@
 
 .info-view__copy--footer {
 	font-weight: 400;
-	font-size: 1em;
+	font-size: 10px;
 }
 
 .info-view__platform-logos {
@@ -606,6 +606,7 @@
     padding: 0px 0px 10px;
     border-radius: 14px;
     width: 100%;
+	margin: 10px 0px;
     flex-wrap: wrap;
 }
 
@@ -1189,7 +1190,7 @@
   line-height: 1.35;
   white-space: pre-wrap;
   text-align: center;
-  font-size: 0.8em;
+  font-size: 9.16px;
 }
 
 .history-share-box__link-preview {

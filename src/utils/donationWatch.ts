@@ -105,13 +105,13 @@ function getStepOne(): HTMLElement | null {
   );
 }
 
-function getStandardDonationSection():
-  | HTMLElement
-  | null {
-  return document.querySelector<HTMLElement>(
-    STANDARD_DONATION_SECTION_SELECTOR,
-  );
-}
+// function getStandardDonationSection():
+//   | HTMLElement
+//   | null {
+//   return document.querySelector<HTMLElement>(
+//     STANDARD_DONATION_SECTION_SELECTOR,
+//   );
+// }
 
 function getCustomAmountInput():
   | HTMLInputElement

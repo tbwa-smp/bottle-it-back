@@ -60,11 +60,13 @@ function formatSinceDate(dateString?: string | null): string {
     return "SINCE YOU GOT STARTED";
   }
 
-  return `SINCE ${date.toLocaleDateString("en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  }).toUpperCase()}`;
+  return `SINCE ${date
+    .toLocaleDateString("en-US", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    })
+    .toUpperCase()}`;
 }
 
 function getShareUrl(): string {
@@ -90,8 +92,8 @@ function getDisplayShareUrl(shareUrl: string): string {
 
 function buildShareText(shareUrl: string): string {
   return [
-    "Hey, did you know that one AI prompt consumes 38ML of water to cool data centers? That's an entire bottle of water for just a short chat with your AI.",
-    `I've been tracking my consumption with every prompt. The best part is, I can offset my water footprint and give the water back to the communities in need. Download the Chrome extension now ${shareUrl}`,
+    "Hey, did you know that your AI prompts consume water to cool data centers? Depending on the platform, model, and length of your chat, a conversation with your AI could use a bottle of water, or even more.",
+    `I've been tracking my consumption with every prompt. The best part is, I can offset my water footprint and give the water back to communities in need. Download the Chrome extension now.​ ${shareUrl}`,
   ].join("\n\n");
 }
 
@@ -254,15 +256,16 @@ function ShareBox({
 
         <div className="history-share-box__message">
           <p>
-            Hey, did you know that one AI prompt consumes 38ML of water to cool
-            data centers? That's an entire bottle of water for just a short chat
-            with your AI.
+            Hey, did you know that your AI prompts consume water to cool data
+            centers? Depending on the platform, model, and length of your chat,
+            a conversation with your AI could use a bottle of water, or even
+            more.
           </p>
 
           <p>
             I've been tracking my consumption with every prompt. The best part
-            is, I can offset my water footprint and give the water back to the
-            communities in need. Download the Chrome extension now{" "}
+            is, I can offset my water footprint and give the water back to
+            communities in need. Download the Chrome extension now.{" "}
             <span className="history-share-box__link-preview">
               {displayShareUrl}
             </span>
