@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useState } from "react";
+
 import type { TrackerStats, WaterModelSettings } from "../utils/types";
 
 type MonthlyViewProps = {
@@ -7,29 +8,31 @@ type MonthlyViewProps = {
   onOpenHistory: () => void;
 };
 
-const DONATION_URL = "https://donate.planet-water.org/donate-to-planet-water";
+const DONATION_URL = "https://donorbox.org/bottle-it-back";
+
 const MONTHLY_RING_GOAL_BOTTLES = 100;
+
 const MINIMUM_DONATION_USD = 1;
+
 const MINIMUM_DONATION_BOTTLES = 20;
 
 function getTrackedMonthlyMl(stats: TrackerStats): number {
-  // const statsWithMonthly = stats as TrackerStats & { monthlyMl?: number };
-
-  // if (typeof statsWithMonthly.monthlyMl === "number") {
-  //   return Math.max(0, statsWithMonthly.monthlyMl);
-  // }
-
-  // return Math.max(0, stats.totalWaterMl);
   return typeof stats.monthlyMl === "number" ? Math.max(0, stats.monthlyMl) : 0;
 }
 
 function getBottleCount(totalMl: number, bottleCapacityMl: number): number {
-  if (bottleCapacityMl <= 0 || totalMl <= 0) return 0;
+  if (bottleCapacityMl <= 0 || totalMl <= 0) {
+    return 0;
+  }
+
   return totalMl / bottleCapacityMl;
 }
 
 function getUsdTotal(bottles: number, usdPerBottle: number): number {
-  if (bottles <= 0 || usdPerBottle <= 0) return 0;
+  if (bottles <= 0 || usdPerBottle <= 0) {
+    return 0;
+  }
+
   return bottles * usdPerBottle;
 }
 
@@ -52,7 +55,12 @@ function getMinimumDonationBottles(
   const actualUsageFloor =
     actualMonthlyBottles > 0 ? Math.floor(actualMonthlyBottles) : 0;
 
-  return Math.max(donationThresholdBottles, actualUsageFloor, 0);
+  return Math.max(
+    MINIMUM_DONATION_BOTTLES,
+    donationThresholdBottles,
+    actualUsageFloor,
+    0,
+  );
 }
 
 function getDonationPayload(
@@ -61,6 +69,7 @@ function getDonationPayload(
   usdPerBottle: number,
 ) {
   const roundedActualMonthlyBottles = Number(actualMonthlyBottles.toFixed(2));
+
   const roundedSelectedDonationBottles = Number(
     selectedDonationBottles.toFixed(2),
   );
@@ -77,12 +86,14 @@ function getDonationPayload(
     if (roundedSelectedDonationBottles >= MINIMUM_DONATION_BOTTLES) {
       return {
         bottles: roundedSelectedDonationBottles,
-        usd: selectedDonationUsd,
+
+        usd: Math.max(MINIMUM_DONATION_USD, selectedDonationUsd),
       };
     }
 
     return {
       bottles: MINIMUM_DONATION_BOTTLES,
+
       usd: MINIMUM_DONATION_USD,
     };
   }
@@ -92,19 +103,44 @@ function getDonationPayload(
       roundedActualMonthlyBottles,
       roundedSelectedDonationBottles,
     ),
-    usd: Math.max(actualOwedUsd, selectedDonationUsd),
+
+    usd: Math.max(MINIMUM_DONATION_USD, actualOwedUsd, selectedDonationUsd),
   };
 }
 
-async function openDonationPage(bottles: number, usd: number) {
+async function startDonationFlow(bottles: number, usd: number): Promise<void> {
+  /*
+   * IMPORTANT:
+   *
+   * DONATION_STARTED does NOT
+   * reset any water statistics.
+   *
+   * It only stores the donation
+   * as pending so donationWatch.ts
+   * knows what Bottle It Back
+   * intended to offset.
+   *
+   * The actual reset happens only
+   * after DONATION_COMPLETED.
+   */
   try {
     if (typeof chrome !== "undefined" && chrome.runtime?.sendMessage) {
-      await chrome.runtime.sendMessage({
+      const response = await chrome.runtime.sendMessage({
         type: "DONATION_STARTED",
+
+        bottles,
+
+        usd,
+
+        source: "monthly",
+
+        timestamp: new Date().toISOString(),
+      });
+
+      console.log("[🍾💧 Bottle It Back] monthly donation started", {
         bottles,
         usd,
-        source: "monthly",
-        timestamp: new Date().toISOString(),
+        response,
       });
     }
   } catch (error) {
@@ -112,10 +148,30 @@ async function openDonationPage(bottles: number, usd: number) {
       "[🍾💧 Bottle It Back] failed to store pending donation",
       error,
     );
+
+    /*
+     * Don't open Donorbox if we
+     * couldn't store the pending
+     * donation.
+     *
+     * Otherwise a successful
+     * donation would have no
+     * pending state to reconcile
+     * against later.
+     */
+    return;
   }
 
+  /*
+   * Opening Donorbox is NOT
+   * considered a completed
+   * donation.
+   */
   if (typeof chrome !== "undefined" && chrome.tabs?.create) {
-    await chrome.tabs.create({ url: DONATION_URL });
+    await chrome.tabs.create({
+      url: DONATION_URL,
+    });
+
     return;
   }
 
@@ -138,6 +194,7 @@ function HistoryIcon({ color = "#2f6b98" }: { color?: string }) {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
+
       <path
         d="M3 12a9 9 0 1 0 3-6.708"
         stroke={color}
@@ -145,6 +202,7 @@ function HistoryIcon({ color = "#2f6b98" }: { color?: string }) {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
+
       <path
         d="M3 4v4h4"
         stroke={color}
@@ -164,6 +222,7 @@ export default function MonthlyView({
   const gradientId = useId().replace(/[:]/g, "");
 
   const monthlyMl = getTrackedMonthlyMl(stats);
+
   const monthlyBottles = getBottleCount(monthlyMl, settings.bottleCapacityMl);
 
   const minimumDonationBottles = useMemo(
@@ -179,11 +238,6 @@ export default function MonthlyView({
     minimumDonationBottles,
   );
 
-  // useEffect(() => {
-  //   setSelectedDonationBottles((current) =>
-  //     Math.max(current, minimumDonationBottles),
-  //   );
-  // }, [minimumDonationBottles]);
   useEffect(() => {
     setSelectedDonationBottles(minimumDonationBottles);
   }, [minimumDonationBottles]);
@@ -210,36 +264,42 @@ export default function MonthlyView({
   const radius = (ringSize - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const progressOffset = circumference * (1 - progressRatio);
-
-  // --- REFINED ANIMATION TRIGGER ---
   const [animatedOffset, setAnimatedOffset] = useState(circumference);
 
   useEffect(() => {
-    // Reset to full circumference whenever the goal or usage changes
     setAnimatedOffset(circumference);
 
-    // Double RAF ensures the reset is rendered before the growth starts
+    let frame2: number | null = null;
+
     const frame1 = requestAnimationFrame(() => {
-      const frame2 = requestAnimationFrame(() => {
+      frame2 = requestAnimationFrame(() => {
         setAnimatedOffset(progressOffset);
       });
-      return () => cancelAnimationFrame(frame2);
     });
 
-    return () => cancelAnimationFrame(frame1);
+    return () => {
+      cancelAnimationFrame(frame1);
+
+      if (frame2 !== null) {
+        cancelAnimationFrame(frame2);
+      }
+    };
   }, [progressOffset, circumference]);
-  // ----------------------------------
 
   const canDecrease = selectedDonationBottles > minimumDonationBottles;
 
-  function decrementDonationBottles() {
+  function decrementDonationBottles(): void {
     setSelectedDonationBottles((current) =>
       Math.max(minimumDonationBottles, current - 1),
     );
   }
 
-  function incrementDonationBottles() {
+  function incrementDonationBottles(): void {
     setSelectedDonationBottles((current) => current + 1);
+  }
+
+  function handleGiveWaterBack(): void {
+    void startDonationFlow(donationPayload.bottles, donationPayload.usd);
   }
 
   return (
@@ -262,6 +322,7 @@ export default function MonthlyView({
                 y2="100%"
               >
                 <stop offset="0%" stopColor="#8ddcff" />
+
                 <stop offset="100%" stopColor="#5eb8ea" />
               </linearGradient>
             </defs>
@@ -287,7 +348,6 @@ export default function MonthlyView({
               strokeDasharray={circumference}
               strokeDashoffset={animatedOffset}
               style={{
-                // Ensure there is a duration and timing function defined
                 transition:
                   "stroke-dashoffset 1.2s cubic-bezier(0.34, 1.56, 0.64, 1)",
               }}
@@ -297,9 +357,11 @@ export default function MonthlyView({
 
           <div className="monthly-ring__content">
             <p className="monthly-ring__label">MONTHLY USAGE</p>
+
             <p className="monthly-ring__value">
               {formatCenterBottleCount(monthlyBottles)}
             </p>
+
             <p className="monthly-ring__unit">bottles</p>
           </div>
 
@@ -321,11 +383,16 @@ export default function MonthlyView({
         <p className="monthly-equivalent__label">EQUIVALENT TO</p>
 
         <div className="monthly-equivalent__row">
-          <div style={{ textAlign: "center" }}>
+          <div
+            style={{
+              textAlign: "center",
+            }}
+          >
             <div className="monthly-equivalent__amount-box">
               <span className="monthly-equivalent__amount">
                 {equivalentUsdTotal.toFixed(2)}
               </span>
+
               <span className="monthly-equivalent__currency">USD</span>
             </div>
           </div>
@@ -333,9 +400,7 @@ export default function MonthlyView({
           <button
             type="button"
             className="monthly-donate-button"
-            onClick={() =>
-              openDonationPage(donationPayload.bottles, donationPayload.usd)
-            }
+            onClick={handleGiveWaterBack}
           >
             GIVE WATER BACK
           </button>
@@ -360,6 +425,7 @@ export default function MonthlyView({
             <span className="monthly-stepper__number">
               {selectedDonationBottles}
             </span>
+
             <span className="monthly-stepper__unit">bottles</span>
           </div>
 

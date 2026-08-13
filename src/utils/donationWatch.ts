@@ -1,10 +1,7 @@
 /// <reference types="vite/client" />
 /// <reference types="chrome" />
 
-import {
-  DEFAULT_SETTINGS,
-  STORAGE_KEYS,
-} from "./storage";
+import { DEFAULT_SETTINGS, STORAGE_KEYS } from "./storage";
 
 import type {
   PendingDonationState,
@@ -13,33 +10,26 @@ import type {
 } from "./types";
 
 const MINIMUM_DONATION_USD = 1;
-
 const DONORBOX_HOSTNAME = "donorbox.org";
 const DONORBOX_PATHNAME = "/bottle-it-back";
+const DONATION_WIDGET_SELECTOR = "#donation_section > article.donation-widget";
+const STEP_ONE_SELECTOR = "#donor-form-step-1";
+const STANDARD_DONATION_SECTION_SELECTOR = "#standard-donation-section";
+const CUSTOM_AMOUNT_SELECTOR = "#donation_custom_amount";
+const FOOTER_BUTTON_SELECTOR = "#footer_button";
+const SUMMARY_ID = "bib-donation-summary";
+const STYLE_ID = "bib-donation-watch-styles";
+const STEP_ONE_CLASS = "bib-offset-step";
 
-const DONATION_WIDGET_SELECTOR =
-  "#donation_section > article.donation-widget";
-
-const STEP_ONE_SELECTOR =
-  "#donor-form-step-1";
-
-const STANDARD_DONATION_SECTION_SELECTOR =
-  "#standard-donation-section";
-
-const CUSTOM_AMOUNT_SELECTOR =
-  "#donation_custom_amount";
-
-const FOOTER_BUTTON_SELECTOR =
-  "#footer_button";
-
-const SUMMARY_ID =
-  "bib-donation-summary";
-
-const STYLE_ID =
-  "bib-donation-watch-styles";
-
-const STEP_ONE_CLASS =
-  "bib-offset-step";
+/*
+ * This marker is injected by Donorbox's
+ * After Donation Tracking Code.
+ *
+ * It is the ONLY signal that should cause
+ * Bottle It Back to report a completed donation.
+ */
+const DONATION_SUCCESS_MARKER_SELECTOR =
+  "#bottle-it-back-donation-completed[data-bib-donation-completed='true']";
 
 type DonationDisplayState = {
   usd: number;
@@ -54,92 +44,56 @@ let currentDisplayState: DonationDisplayState = {
 };
 
 let hasReportedSuccess = false;
+
 let syncScheduled = false;
+
 let syncing = false;
+
 let lastLoggedSignature = "";
 
 let isForwardingDonorboxClick = false;
 
-function getDonationUsd(
-  calculatedUsd: number,
-): number {
+function getDonationUsd(calculatedUsd: number): number {
   if (!Number.isFinite(calculatedUsd)) {
     return MINIMUM_DONATION_USD;
   }
 
-  return Math.max(
-    MINIMUM_DONATION_USD,
-    Number(calculatedUsd.toFixed(2)),
-  );
+  return Math.max(MINIMUM_DONATION_USD, Number(calculatedUsd.toFixed(2)));
 }
 
 function isDonorboxPage(): boolean {
-  const hostname =
-    window.location.hostname.toLowerCase();
+  const hostname = window.location.hostname.toLowerCase();
 
-  const pathname =
-    window.location.pathname.toLowerCase();
+  const pathname = window.location.pathname.toLowerCase();
 
   return (
-    (
-      hostname === DONORBOX_HOSTNAME ||
-      hostname.endsWith(
-        `.${DONORBOX_HOSTNAME}`,
-      )
-    ) &&
-    pathname.startsWith(
-      DONORBOX_PATHNAME,
-    )
+    (hostname === DONORBOX_HOSTNAME ||
+      hostname.endsWith(`.${DONORBOX_HOSTNAME}`)) &&
+    pathname.startsWith(DONORBOX_PATHNAME)
   );
 }
 
 function getDonationWidget(): HTMLElement | null {
-  return document.querySelector<HTMLElement>(
-    DONATION_WIDGET_SELECTOR,
-  );
+  return document.querySelector<HTMLElement>(DONATION_WIDGET_SELECTOR);
 }
 
 function getStepOne(): HTMLElement | null {
-  return document.querySelector<HTMLElement>(
-    STEP_ONE_SELECTOR,
-  );
+  return document.querySelector<HTMLElement>(STEP_ONE_SELECTOR);
 }
 
-// function getStandardDonationSection():
-//   | HTMLElement
-//   | null {
-//   return document.querySelector<HTMLElement>(
-//     STANDARD_DONATION_SECTION_SELECTOR,
-//   );
-// }
-
-function getCustomAmountInput():
-  | HTMLInputElement
-  | null {
-  return document.querySelector<HTMLInputElement>(
-    CUSTOM_AMOUNT_SELECTOR,
-  );
+function getCustomAmountInput(): HTMLInputElement | null {
+  return document.querySelector<HTMLInputElement>(CUSTOM_AMOUNT_SELECTOR);
 }
 
-function getFooterButton():
-  | HTMLButtonElement
-  | null {
-  return document.querySelector<HTMLButtonElement>(
-    FOOTER_BUTTON_SELECTOR,
-  );
+function getFooterButton(): HTMLButtonElement | null {
+  return document.querySelector<HTMLButtonElement>(FOOTER_BUTTON_SELECTOR);
 }
 
-function getFooterNextElement():
-  | HTMLElement
-  | null {
-  return document.querySelector<HTMLElement>(
-    `${FOOTER_BUTTON_SELECTOR} .next`,
-  );
+function getFooterNextElement(): HTMLElement | null {
+  return document.querySelector<HTMLElement>(`${FOOTER_BUTTON_SELECTOR} .next`);
 }
 
-function getStepOneHeaderLabel():
-  | HTMLElement
-  | null {
+function getStepOneHeaderLabel(): HTMLElement | null {
   return document.querySelector<HTMLElement>(
     `${DONATION_WIDGET_SELECTOR} .tabs-header .display-amount .step-1`,
   );
@@ -148,49 +102,35 @@ function getStepOneHeaderLabel():
 function isStepOneActive(): boolean {
   const stepOne = getStepOne();
 
-  return Boolean(
-    stepOne?.classList.contains("active"),
-  );
+  return Boolean(stepOne?.classList.contains("active"));
 }
 
-function formatBottles(
-  value: number,
-): string {
+function formatBottles(value: number): string {
   if (!Number.isFinite(value)) {
     return "0";
   }
 
-  return Number(
-    Math.max(0, value).toFixed(2),
-  ).toString();
+  return Number(Math.max(0, value).toFixed(2)).toString();
 }
 
-function normalizePositiveNumber(
-  value: unknown,
-): number {
-  if (
-    typeof value !== "number" ||
-    !Number.isFinite(value)
-  ) {
+function normalizePositiveNumber(value: unknown): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
     return 0;
   }
 
   return Math.max(0, value);
 }
 
-async function getDonationDisplayState():
-  Promise<DonationDisplayState> {
-  const result =
-    await chrome.storage.local.get([
-      STORAGE_KEYS.pendingDonation,
-      STORAGE_KEYS.stats,
-      STORAGE_KEYS.settings,
-    ]);
+async function getDonationDisplayState(): Promise<DonationDisplayState> {
+  const result = await chrome.storage.local.get([
+    STORAGE_KEYS.pendingDonation,
+    STORAGE_KEYS.stats,
+    STORAGE_KEYS.settings,
+  ]);
 
-  const pending =
-    result[
-      STORAGE_KEYS.pendingDonation
-    ] as PendingDonationState | undefined;
+  const pending = result[STORAGE_KEYS.pendingDonation] as
+    | PendingDonationState
+    | undefined;
 
   if (
     pending &&
@@ -199,73 +139,39 @@ async function getDonationDisplayState():
     pending.usd > 0
   ) {
     return {
-      usd: getDonationUsd(
-        normalizePositiveNumber(
-          pending.usd,
-        ),
-      ),
+      usd: getDonationUsd(normalizePositiveNumber(pending.usd)),
 
-      bottles:
-        normalizePositiveNumber(
-          pending.bottles,
-        ),
+      bottles: normalizePositiveNumber(pending.bottles),
 
       source: "pending",
     };
   }
 
-  const stats =
-    result[
-      STORAGE_KEYS.stats
-    ] as Partial<TrackerStats> | undefined;
+  const stats = result[STORAGE_KEYS.stats] as Partial<TrackerStats> | undefined;
 
   const settings: WaterModelSettings = {
     ...DEFAULT_SETTINGS,
 
-    ...(
-      result[
-        STORAGE_KEYS.settings
-      ] as
-        | Partial<WaterModelSettings>
-        | undefined
-    ),
+    ...(result[STORAGE_KEYS.settings] as
+      | Partial<WaterModelSettings>
+      | undefined),
   };
 
-  const todayMl =
-    normalizePositiveNumber(
-      stats?.todayMl,
-    );
+  const todayMl = normalizePositiveNumber(stats?.todayMl);
 
-  const bottleCapacityMl =
-    normalizePositiveNumber(
-      settings.bottleCapacityMl,
-    );
+  const bottleCapacityMl = normalizePositiveNumber(settings.bottleCapacityMl);
 
-  const usdPerBottle =
-    normalizePositiveNumber(
-      settings.usdPerBottle,
-    );
+  const usdPerBottle = normalizePositiveNumber(settings.usdPerBottle);
 
-  if (
-    todayMl > 0 &&
-    bottleCapacityMl > 0
-  ) {
-    const bottles =
-      todayMl / bottleCapacityMl;
+  if (todayMl > 0 && bottleCapacityMl > 0) {
+    const bottles = todayMl / bottleCapacityMl;
 
-    const calculatedUsd =
-      bottles * usdPerBottle;
+    const calculatedUsd = bottles * usdPerBottle;
 
     return {
-      bottles:
-        Number(
-          bottles.toFixed(2),
-        ),
+      bottles: Number(bottles.toFixed(2)),
 
-      usd:
-        getDonationUsd(
-          calculatedUsd,
-        ),
+      usd: getDonationUsd(calculatedUsd),
 
       source: "stats",
     };
@@ -278,120 +184,73 @@ async function getDonationDisplayState():
   };
 }
 
-function setNativeInputValue(
-  input: HTMLInputElement,
-  value: string,
-): void {
-  const descriptor =
-    Object.getOwnPropertyDescriptor(
-      window.HTMLInputElement.prototype,
-      "value",
-    );
+function setNativeInputValue(input: HTMLInputElement, value: string): void {
+  const descriptor = Object.getOwnPropertyDescriptor(
+    window.HTMLInputElement.prototype,
+    "value",
+  );
 
-  const setter =
-    descriptor?.set;
+  const setter = descriptor?.set;
 
   input.focus();
 
   if (setter) {
-    setter.call(
-      input,
-      value,
-    );
+    setter.call(input, value);
   } else {
     input.value = value;
   }
 
-  input.setAttribute(
-    "value",
-    value,
+  input.setAttribute("value", value);
+
+  input.dispatchEvent(
+    new Event("input", {
+      bubbles: true,
+    }),
   );
 
   input.dispatchEvent(
-    new Event(
-      "input",
-      {
-        bubbles: true,
-      },
-    ),
-  );
-
-  input.dispatchEvent(
-    new Event(
-      "change",
-      {
-        bubbles: true,
-      },
-    ),
+    new Event("change", {
+      bubbles: true,
+    }),
   );
 
   input.blur();
 }
 
-function applyAmountToDonorbox(
-  usd: number,
-): boolean {
-  const input =
-    getCustomAmountInput();
+function applyAmountToDonorbox(usd: number): boolean {
+  const input = getCustomAmountInput();
 
   if (!input) {
-    console.warn(
-      "[🍾💧 Bottle It Back] #donation_custom_amount not found",
-    );
+    console.warn("[🍾💧 Bottle It Back] #donation_custom_amount not found");
 
     return false;
   }
 
-  if (
-    !Number.isFinite(usd) ||
-    usd <= 0
-  ) {
-    console.warn(
-      "[🍾💧 Bottle It Back] donation amount is zero",
-    );
+  if (!Number.isFinite(usd) || usd <= 0) {
+    console.warn("[🍾💧 Bottle It Back] donation amount is zero");
 
     return false;
   }
 
-  const formatted =
-    usd.toFixed(2);
+  const formatted = usd.toFixed(2);
 
-  setNativeInputValue(
-    input,
-    formatted,
-  );
+  setNativeInputValue(input, formatted);
 
-  console.log(
-    "[🍾💧 Bottle It Back] applied real Donorbox amount",
-    formatted,
-  );
+  console.log("[🍾💧 Bottle It Back] applied real Donorbox amount", formatted);
 
   return true;
 }
 
 function injectStyles(): void {
-  if (
-    document.getElementById(
-      STYLE_ID,
-    )
-  ) {
+  if (document.getElementById(STYLE_ID)) {
     return;
   }
 
-  const style =
-    document.createElement("style");
+  const style = document.createElement("style");
 
   style.id = STYLE_ID;
 
   style.textContent = `
-    /*
-     * Only replace the contents of Step 1.
-     *
-     * The Donorbox widget, header, footer, button,
-     * progress indicators, arrows, borders and
-     * border-radius all retain their original styles.
-     */
-
     ${STEP_ONE_SELECTOR}.${STEP_ONE_CLASS}
       ${STANDARD_DONATION_SECTION_SELECTOR} {
       display: none !important;
@@ -584,20 +443,13 @@ function injectStyles(): void {
     }
   `;
 
-  document.head.appendChild(
-    style,
-  );
+  document.head.appendChild(style);
 
-  console.log(
-    "[🍾💧 Bottle It Back] custom Donorbox Step 1 styles injected",
-  );
+  console.log("[🍾💧 Bottle It Back] custom Donorbox Step 1 styles injected");
 }
 
 function createSummary(): HTMLElement {
-  const summary =
-    document.createElement(
-      "div",
-    );
+  const summary = document.createElement("div");
 
   summary.id = SUMMARY_ID;
 
@@ -628,49 +480,30 @@ function createSummary(): HTMLElement {
   return summary;
 }
 
-function ensureSummary():
-  | HTMLElement
-  | null {
-  const stepOne =
-    getStepOne();
+function ensureSummary(): HTMLElement | null {
+  const stepOne = getStepOne();
 
   if (!stepOne) {
     return null;
   }
 
-  stepOne.classList.add(
-    STEP_ONE_CLASS,
-  );
+  stepOne.classList.add(STEP_ONE_CLASS);
 
-  let summary =
-    document.getElementById(
-      SUMMARY_ID,
-    );
+  let summary = document.getElementById(SUMMARY_ID);
 
   if (!summary) {
-    summary =
-      createSummary();
+    summary = createSummary();
 
-    stepOne.appendChild(
-      summary,
-    );
+    stepOne.appendChild(summary);
 
-    console.log(
-      "[🍾💧 Bottle It Back] donation summary injected",
-    );
+    console.log("[🍾💧 Bottle It Back] donation summary injected");
   }
 
   return summary;
 }
 
-function setTextIfDifferent(
-  element: HTMLElement | null,
-  value: string,
-): void {
-  if (
-    element &&
-    element.textContent !== value
-  ) {
+function setTextIfDifferent(element: HTMLElement | null, value: string): void {
+  if (element && element.textContent !== value) {
     element.textContent = value;
   }
 }
@@ -679,76 +512,39 @@ function updateSummaryValues(
   summary: HTMLElement,
   state: DonationDisplayState,
 ): void {
-  const amount =
-    summary.querySelector<HTMLElement>(
-      ".bib-total-value",
-    );
+  const amount = summary.querySelector<HTMLElement>(".bib-total-value");
 
-  const bottles =
-    summary.querySelector<HTMLElement>(
-      ".bib-total-bottles",
-    );
+  const bottles = summary.querySelector<HTMLElement>(".bib-total-bottles");
 
-  setTextIfDifferent(
-    amount,
-    state.usd.toFixed(2),
-  );
+  setTextIfDifferent(amount, state.usd.toFixed(2));
 
-  setTextIfDifferent(
-    bottles,
-    `${formatBottles(
-      state.bottles,
-    )} BOTTLE/S`,
-  );
+  setTextIfDifferent(bottles, `${formatBottles(state.bottles)} BOTTLE/S`);
 }
 
-function setHeaderLabel(
-  active: boolean,
-): void {
-  const label =
-    getStepOneHeaderLabel();
+function setHeaderLabel(active: boolean): void {
+  const label = getStepOneHeaderLabel();
 
   if (!label) {
     return;
   }
 
-  if (
-    !label.dataset.bibOriginalText
-  ) {
+  if (!label.dataset.bibOriginalText) {
     label.dataset.bibOriginalText =
-      label.textContent?.trim() ||
-      "Choose amount";
+      label.textContent?.trim() || "Choose amount";
   }
 
   if (active) {
-    /*
-     * Only change the text.
-     *
-     * No font weight, padding, font size,
-     * arrow or progress styling is modified.
-     */
-    label.textContent =
-      "Offset your AI water footprint";
+    label.textContent = "Offset your AI water footprint";
 
     return;
   }
 
-  label.textContent =
-    label.dataset.bibOriginalText;
+  label.textContent = label.dataset.bibOriginalText;
 }
 
-function findButtonTextNode(
-  element: HTMLElement,
-): Text | null {
-  for (
-    const node of
-    Array.from(element.childNodes)
-  ) {
-    if (
-      node.nodeType ===
-        Node.TEXT_NODE &&
-      node.textContent?.trim()
-    ) {
+function findButtonTextNode(element: HTMLElement): Text | null {
+  for (const node of Array.from(element.childNodes)) {
+    if (node.nodeType === Node.TEXT_NODE && node.textContent?.trim()) {
       return node as Text;
     }
   }
@@ -756,241 +552,135 @@ function findButtonTextNode(
   return null;
 }
 
-function setFooterButtonLabel(
-  active: boolean,
-): void {
-  const next =
-    getFooterNextElement();
+function setFooterButtonLabel(active: boolean): void {
+  const next = getFooterNextElement();
 
   if (!next) {
     return;
   }
 
-  const textNode =
-    findButtonTextNode(
-      next,
-    );
+  const textNode = findButtonTextNode(next);
 
   if (!textNode) {
     return;
   }
 
-  if (
-    !next.dataset.bibOriginalText
-  ) {
-    next.dataset.bibOriginalText =
-      textNode.textContent?.trim() ||
-      "Next";
+  if (!next.dataset.bibOriginalText) {
+    next.dataset.bibOriginalText = textNode.textContent?.trim() || "Next";
   }
 
   if (active) {
-    /*
-     * Change ONLY the text node.
-     *
-     * The original Donorbox <i class="material-icons">
-     * arrow remains completely untouched.
-     */
-    textNode.textContent =
-      "Donate Bottles ";
+    textNode.textContent = "Donate Bottles ";
 
-    next.setAttribute(
-      "aria-label",
-      "Donate Bottles",
-    );
+    next.setAttribute("aria-label", "Donate Bottles");
 
     return;
   }
 
-  textNode.textContent =
-    `${
-      next.dataset.bibOriginalText
-    } `;
+  textNode.textContent = `${next.dataset.bibOriginalText} `;
 
-  next.setAttribute(
-    "aria-label",
-    "Next Button",
-  );
+  next.setAttribute("aria-label", "Next Button");
 }
 
-function clickDonorboxNextSafely(
-  button: HTMLButtonElement,
-): void {
-  const originalDataAction =
-    button.getAttribute(
-      "data-action",
-    );
+function clickDonorboxNextSafely(button: HTMLButtonElement): void {
+  const originalDataAction = button.getAttribute("data-action");
 
   /*
-   * Donorbox's ecommerce tracking handler throws
-   * when our custom amount is populated
+   * Donorbox's ecommerce tracking handler
+   * can throw when our amount is populated
    * programmatically.
    *
-   * Temporarily remove only that analytics action.
+   * Temporarily remove only that analytics
+   * action while forwarding the click.
    */
-
   if (originalDataAction) {
-    button.removeAttribute(
-      "data-action",
-    );
+    button.removeAttribute("data-action");
   }
 
-  isForwardingDonorboxClick =
-    true;
+  isForwardingDonorboxClick = true;
 
   try {
-    /*
-     * This remains the real Donorbox button.
-     */
     button.click();
   } finally {
-    isForwardingDonorboxClick =
-      false;
+    isForwardingDonorboxClick = false;
 
-    window.setTimeout(
-      () => {
-        if (
-          originalDataAction
-        ) {
-          button.setAttribute(
-            "data-action",
-            originalDataAction,
-          );
-        }
-      },
-      250,
-    );
+    window.setTimeout(() => {
+      if (originalDataAction) {
+        button.setAttribute("data-action", originalDataAction);
+      }
+    }, 250);
   }
 }
 
-async function handleDonateClick():
-  Promise<void> {
-  const state =
-    currentDisplayState;
+async function handleDonateClick(): Promise<void> {
+  const state = currentDisplayState;
 
-  if (
-    state.usd <= 0
-  ) {
-    console.warn(
-      "[🍾💧 Bottle It Back] nothing to donate",
-    );
+  if (state.usd <= 0) {
+    console.warn("[🍾💧 Bottle It Back] nothing to donate");
 
     return;
   }
 
-  const applied =
-    applyAmountToDonorbox(
-      state.usd,
-    );
+  const applied = applyAmountToDonorbox(state.usd);
 
   if (!applied) {
     return;
   }
 
-  /*
-   * Give Donorbox a moment to process
-   * its real amount input.
-   */
+  await new Promise<void>((resolve) => {
+    window.setTimeout(resolve, 150);
+  });
 
-  await new Promise<void>(
-    (resolve) => {
-      window.setTimeout(
-        resolve,
-        150,
-      );
-    },
-  );
-
-  const footerButton =
-    getFooterButton();
+  const footerButton = getFooterButton();
 
   if (!footerButton) {
-    console.error(
-      "[🍾💧 Bottle It Back] #footer_button not found",
-    );
+    console.error("[🍾💧 Bottle It Back] #footer_button not found");
 
     return;
   }
 
-  console.log(
-    "[🍾💧 Bottle It Back] triggering real Donorbox Next button",
-    {
-      usd:
-        state.usd,
+  console.log("[🍾💧 Bottle It Back] triggering real Donorbox Next button", {
+    usd: state.usd,
 
-      bottles:
-        state.bottles,
-    },
-  );
+    bottles: state.bottles,
+  });
 
-  clickDonorboxNextSafely(
-    footerButton,
-  );
+  clickDonorboxNextSafely(footerButton);
 
-  window.setTimeout(
-    scheduleSync,
-    100,
-  );
+  window.setTimeout(scheduleSync, 100);
 
-  window.setTimeout(
-    scheduleSync,
-    300,
-  );
+  window.setTimeout(scheduleSync, 300);
 
-  window.setTimeout(
-    () => {
-      if (
-        isStepOneActive()
-      ) {
-        console.warn(
-          "[🍾💧 Bottle It Back] Donorbox remained on Step 1",
-        );
+  window.setTimeout(() => {
+    if (isStepOneActive()) {
+      console.warn("[🍾💧 Bottle It Back] Donorbox remained on Step 1");
 
-        return;
-      }
+      return;
+    }
 
-      console.log(
-        "[🍾💧 Bottle It Back] Donorbox advanced from Step 1",
-      );
-    },
-    600,
-  );
+    console.log("[🍾💧 Bottle It Back] Donorbox advanced from Step 1");
+  }, 600);
 }
 
 function bindFooterButton(): void {
-  const button =
-    getFooterButton();
+  const button = getFooterButton();
 
   if (!button) {
     return;
   }
 
-  if (
-    button.dataset.bibClickBound ===
-    "true"
-  ) {
+  if (button.dataset.bibClickBound === "true") {
     return;
   }
-
-  /*
-   * Intercept the user's click BEFORE Donorbox.
-   *
-   * Once Bottle It Back has populated the real
-   * amount input, handleDonateClick() forwards
-   * another click back to the original button.
-   */
 
   button.addEventListener(
     "click",
     (event) => {
-      if (
-        isForwardingDonorboxClick
-      ) {
+      if (isForwardingDonorboxClick) {
         return;
       }
 
-      if (
-        !isStepOneActive()
-      ) {
+      if (!isStepOneActive()) {
         return;
       }
 
@@ -1003,25 +693,16 @@ function bindFooterButton(): void {
     true,
   );
 
-  button.dataset.bibClickBound =
-    "true";
+  button.dataset.bibClickBound = "true";
 }
 
-function setStepOneExperience(
-  active: boolean,
-): void {
-  const stepOne =
-    getStepOne();
+function setStepOneExperience(active: boolean): void {
+  const stepOne = getStepOne();
 
-  const summary =
-    document.getElementById(
-      SUMMARY_ID,
-    );
+  const summary = document.getElementById(SUMMARY_ID);
 
   if (active) {
-    stepOne?.classList.add(
-      STEP_ONE_CLASS,
-    );
+    stepOne?.classList.add(STEP_ONE_CLASS);
 
     if (summary) {
       summary.hidden = false;
@@ -1034,9 +715,7 @@ function setStepOneExperience(
     return;
   }
 
-  stepOne?.classList.remove(
-    STEP_ONE_CLASS,
-  );
+  stepOne?.classList.remove(STEP_ONE_CLASS);
 
   if (summary) {
     summary.hidden = true;
@@ -1047,35 +726,25 @@ function setStepOneExperience(
   setFooterButtonLabel(false);
 }
 
-async function syncDonationUi():
-  Promise<void> {
-  if (
-    syncing ||
-    !isDonorboxPage()
-  ) {
+async function syncDonationUi(): Promise<void> {
+  if (syncing || !isDonorboxPage()) {
     return;
   }
 
   syncing = true;
 
   try {
-    const widget =
-      getDonationWidget();
+    const widget = getDonationWidget();
 
-    const stepOne =
-      getStepOne();
+    const stepOne = getStepOne();
 
-    if (
-      !widget ||
-      !stepOne
-    ) {
+    if (!widget || !stepOne) {
       return;
     }
 
     injectStyles();
 
-    const summary =
-      ensureSummary();
+    const summary = ensureSummary();
 
     if (!summary) {
       return;
@@ -1083,13 +752,9 @@ async function syncDonationUi():
 
     bindFooterButton();
 
-    currentDisplayState =
-      await getDonationDisplayState();
+    currentDisplayState = await getDonationDisplayState();
 
-    updateSummaryValues(
-      summary,
-      currentDisplayState,
-    );
+    updateSummaryValues(summary, currentDisplayState);
 
     const signature = [
       currentDisplayState.source,
@@ -1097,27 +762,15 @@ async function syncDonationUi():
       currentDisplayState.bottles,
     ].join(":");
 
-    if (
-      signature !==
-      lastLoggedSignature
-    ) {
-      lastLoggedSignature =
-        signature;
+    if (signature !== lastLoggedSignature) {
+      lastLoggedSignature = signature;
 
-      console.log(
-        "[🍾💧 Bottle It Back] donation values",
-        currentDisplayState,
-      );
+      console.log("[🍾💧 Bottle It Back] donation values", currentDisplayState);
     }
 
-    setStepOneExperience(
-      isStepOneActive(),
-    );
+    setStepOneExperience(isStepOneActive());
   } catch (error) {
-    console.error(
-      "[🍾💧 Bottle It Back] donation UI sync failed",
-      error,
-    );
+    console.error("[🍾💧 Bottle It Back] donation UI sync failed", error);
   } finally {
     syncing = false;
   }
@@ -1130,133 +783,132 @@ function scheduleSync(): void {
 
   syncScheduled = true;
 
-  window.setTimeout(
-    () => {
-      syncScheduled = false;
+  window.setTimeout(() => {
+    syncScheduled = false;
 
-      void syncDonationUi();
-    },
-    50,
-  );
+    void syncDonationUi();
+  }, 50);
 }
 
 /*
  * ==================================================
- * DONATION SUCCESS
+ * CONFIRMED DONATION SUCCESS
  * ==================================================
+ *
+ * IMPORTANT:
+ *
+ * We no longer scan the page for phrases such as:
+ *
+ * "thank you"
+ * "receipt will be sent"
+ * "payment is being processed"
+ *
+ * Those can produce false positives.
+ *
+ * The ONLY valid signal is the DOM marker inserted
+ * by Donorbox's After Donation Tracking Code.
  */
 
-function getLegacyThankYouHeading():
-  string {
-  const widget =
-    document.querySelector(
-      "#donation_section > dbox-widget",
-    ) as HTMLElement | null;
-
-  return (
-    widget?.shadowRoot
-      ?.querySelector(
-        "#page_thank_you > div > span > p",
-      )
-      ?.textContent
-      ?.trim()
-      ?.toLowerCase() ??
-    ""
-  );
+function hasConfirmedDonationMarker(): boolean {
+  return Boolean(document.querySelector(DONATION_SUCCESS_MARKER_SELECTOR));
 }
 
-function looksLikeDonationSuccess():
-  boolean {
-  const thankYou =
-    document.querySelector<HTMLElement>(
-      "#thank_you",
+async function hasPendingDonation(): Promise<boolean> {
+  try {
+    const result = await chrome.storage.local.get(STORAGE_KEYS.pendingDonation);
+
+    const pending = result[STORAGE_KEYS.pendingDonation] as
+      | PendingDonationState
+      | undefined;
+
+    return Boolean(pending);
+  } catch (error) {
+    console.error(
+      "[🍾💧 Bottle It Back] failed to read pending donation",
+      error,
     );
 
-  if (
-    thankYou &&
-    /thank you/i.test(
-      thankYou.innerText ?? "",
-    )
-  ) {
-    return true;
+    return false;
   }
-
-  if (
-    getLegacyThankYouHeading().includes(
-      "thank you",
-    )
-  ) {
-    return true;
-  }
-
-  const pageText =
-    document.body?.innerText
-      ?.toLowerCase() ??
-    "";
-
-  const specificMarkers = [
-    "your payment is being processed",
-    "receipt will be sent",
-    "donation successful",
-    "thank you for your donation",
-  ];
-
-  return specificMarkers.some(
-    (marker) =>
-      pageText.includes(
-        marker,
-      ),
-  );
 }
 
-async function reportDonationCompleted():
-  Promise<void> {
+async function reportDonationCompleted(): Promise<void> {
   if (hasReportedSuccess) {
+    return;
+  }
+
+  if (!hasConfirmedDonationMarker()) {
+    return;
+  }
+
+  /*
+   * Extra client-side guard.
+   *
+   * background.ts also verifies that a
+   * pending donation exists, so we have
+   * protection on both sides.
+   */
+  const pending = await hasPendingDonation();
+
+  if (!pending) {
+    console.log(
+      "[🍾💧 Bottle It Back] donation success marker found, but there is no pending Bottle It Back donation",
+    );
+
     return;
   }
 
   hasReportedSuccess = true;
 
   try {
-    await chrome.runtime.sendMessage({
-      type:
-        "DONATION_COMPLETED",
+    const response = await chrome.runtime.sendMessage({
+      type: "DONATION_COMPLETED",
 
-      url:
-        window.location.href,
+      url: window.location.href,
 
-      timestamp:
-        new Date().toISOString(),
+      timestamp: new Date().toISOString(),
     });
 
     console.log(
-      "[🍾💧 Bottle It Back] donation completion detected",
+      "[🍾💧 Bottle It Back] confirmed Donorbox donation completed",
+      response,
     );
   } catch (error) {
-    hasReportedSuccess =
-      false;
+    /*
+     * Allow another MutationObserver pass
+     * to retry if messaging failed.
+     */
+    hasReportedSuccess = false;
 
     console.error(
-      "[🍾💧 Bottle It Back] failed to report donation completion",
+      "[🍾💧 Bottle It Back] failed to report completed donation",
       error,
     );
   }
 }
 
-function checkForSuccess(): void {
-  if (
-    looksLikeDonationSuccess()
-  ) {
-    void reportDonationCompleted();
+function checkForConfirmedDonation(): void {
+  if (!hasConfirmedDonationMarker()) {
+    return;
   }
+
+  void reportDonationCompleted();
 }
 
-function run(): void {
-  checkForSuccess();
+/*
+ * ==================================================
+ * RUN
+ * ==================================================
+ */
 
-  if (
-    isDonorboxPage()
-  ) {
+function run(): void {
+  /*
+   * Checking this is harmless on initial load:
+   * no success marker = no completion message.
+   */
+  checkForConfirmedDonation();
+
+  if (isDonorboxPage()) {
     scheduleSync();
   }
 }
@@ -1267,79 +919,54 @@ function run(): void {
  * ==================================================
  */
 
-console.log(
-  "[🍾💧 Bottle It Back] Donorbox watcher loaded",
-  {
-    url:
-      window.location.href,
-  },
-);
+console.log("[🍾💧 Bottle It Back] Donorbox watcher loaded", {
+  url: window.location.href,
+});
 
 run();
 
-const observer =
-  new MutationObserver(
-    () => {
-      checkForSuccess();
+/*
+ * The same observer handles both:
+ *
+ * 1. Donorbox's SPA/widget UI changes
+ * 2. The success marker inserted by the
+ *    After Donation Tracking Code
+ */
+const observer = new MutationObserver(() => {
+  checkForConfirmedDonation();
 
-      if (
-        isDonorboxPage()
-      ) {
-        scheduleSync();
-      }
-    },
-  );
-
-observer.observe(
-  document.documentElement,
-  {
-    childList: true,
-    subtree: true,
-
-    attributes: true,
-
-    attributeFilter: [
-      "class",
-    ],
-  },
-);
-
-window.addEventListener(
-  "load",
-  run,
-);
-
-document.addEventListener(
-  "readystatechange",
-  run,
-);
-
-chrome.storage.onChanged.addListener(
-  (
-    changes,
-    areaName,
-  ) => {
-    if (
-      areaName !== "local"
-    ) {
-      return;
-    }
-
-    const relevant =
-      changes[
-        STORAGE_KEYS.pendingDonation
-      ] ||
-      changes[
-        STORAGE_KEYS.stats
-      ] ||
-      changes[
-        STORAGE_KEYS.settings
-      ];
-
-    if (!relevant) {
-      return;
-    }
-
+  if (isDonorboxPage()) {
     scheduleSync();
-  },
-);
+  }
+});
+
+observer.observe(document.documentElement, {
+  childList: true,
+
+  subtree: true,
+
+  attributes: true,
+
+  attributeFilter: ["class", "id", "data-bib-donation-completed"],
+});
+
+window.addEventListener("load", run);
+
+document.addEventListener("readystatechange", run);
+
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName !== "local") {
+    return;
+  }
+
+  const relevant =
+    changes[STORAGE_KEYS.pendingDonation] ||
+    changes[STORAGE_KEYS.stats] ||
+    changes[STORAGE_KEYS.settings];
+
+  if (!relevant) {
+    return;
+  }
+
+  scheduleSync();
+});

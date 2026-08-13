@@ -241,6 +241,10 @@ export interface DonationStartedMessage {
 export interface DonationCompletedMessage {
   type: "DONATION_COMPLETED";
 
+  donationId: string;
+  amount: number;
+  currency: string;
+
   url: string;
   timestamp: string;
 }

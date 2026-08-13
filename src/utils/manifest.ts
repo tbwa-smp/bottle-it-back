@@ -10,7 +10,6 @@ export default defineManifest({
   permissions: ["storage"],
   host_permissions: [
     ...CONTENT_SCRIPT_MATCHES,
-    "https://donate.planet-water.org/*",
   ],
   background: {
     service_worker: "src/background.ts",

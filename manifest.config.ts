@@ -29,7 +29,6 @@ export default defineManifest({
     "https://copilot.microsoft.com/*",
     "https://www.deepseek.com/*",
     "https://chat.deepseek.com/*",
-    "https://donate.planet-water.org/*",
     "https://donorbox.org/bottle-it-back*",
     "https://api.ecologits.ai/*",
   ],
@@ -80,7 +79,6 @@ export default defineManifest({
     },
     {
       matches: [
-        "https://donate.planet-water.org/*",
         "https://donorbox.org/bottle-it-back*",
       ],
       js: ["src/utils/donationWatch.ts"],
