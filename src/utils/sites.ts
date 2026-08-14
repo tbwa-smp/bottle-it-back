@@ -8,12 +8,6 @@ export const AI_SITES = [
     matchPatterns: ['https://chatgpt.com/*', 'https://chat.openai.com/*'],
   },
   {
-    key: 'sora',
-    label: 'Sora',
-    hostnames: ['sora.com'],
-    matchPatterns: ['https://sora.com/*'],
-  },
-  {
     key: 'gemini',
     label: 'Gemini',
     hostnames: ['gemini.google.com'],
@@ -26,38 +20,10 @@ export const AI_SITES = [
     matchPatterns: ['https://claude.ai/*'],
   },
   {
-    key: 'perplexity',
-    label: 'Perplexity',
-    hostnames: ['perplexity.ai', 'www.perplexity.ai'],
-    matchPatterns: ['https://perplexity.ai/*', 'https://www.perplexity.ai/*'],
-  },
-  {
-    key: 'metaai',
-    label: 'Meta AI',
-    hostnames: ['meta.ai', 'www.meta.ai'],
-    matchPatterns: ['https://meta.ai/*', 'https://www.meta.ai/*'],
-  },
-  {
-    key: 'grok',
-    label: 'Grok',
-    hostnames: ['grok.com'],
-    matchPatterns: ['https://grok.com/*'],
-  },
-  {
-    key: 'copilot',
-    label: 'Copilot',
-    hostnames: ['copilot.microsoft.com'],
-    matchPatterns: ['https://copilot.microsoft.com/*'],
-  },
-  {
-    key: 'deepseek',
-    label: 'DeepSeek',
-    hostnames: ['chat.deepseek.com', 'www.deepseek.com', 'deepseek.com'],
-    matchPatterns: [
-      'https://chat.deepseek.com/*',
-      'https://www.deepseek.com/*',
-      'https://deepseek.com/*',
-    ],
+    key: 'mistral',
+    label: 'Mistral',
+    hostnames: ['mistral.ai'],
+    matchPatterns: ['https://chat.mistral.ai/*'],
   },
 ] as const satisfies readonly SiteDefinition[];
 

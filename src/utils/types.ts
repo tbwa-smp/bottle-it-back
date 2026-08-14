@@ -2,12 +2,7 @@ export const SITE_KEYS = [
   "chatgpt",
   "gemini",
   "claude",
-  "perplexity",
-  "metaai",
-  "grok",
-  "copilot",
-  "sora",
-  "deepseek",
+  "mistral"
 ] as const;
 
 export type SiteKey =
@@ -37,7 +32,8 @@ export type PromptSource =
 export type EcoLogitsProvider =
   | "openai"
   | "google_genai"
-  | "anthropic";
+  | "anthropic"
+  | "mistralai";
 
 export type OutputTokenSource =
   | "provider"
@@ -141,15 +137,10 @@ export interface ActivePingMessage
 export interface AIResponseCompleteMessage
   extends MessageBase {
   type: "AI_RESPONSE_COMPLETE";
-
   provider: EcoLogitsProvider;
-
   modelName: string;
-
   outputTokenCount: number;
-
   requestLatency: number;
-
   tokenSource: OutputTokenSource;
 }
 
@@ -217,34 +208,23 @@ export type TrackerResponse =
 export interface PendingDonationState {
   bottles: number;
   usd: number;
-
-  source:
-    | "monthly"
-    | "usage";
-
+  source: "monthly" | "usage";
   startedAt: string;
 }
 
 export interface DonationStartedMessage {
   type: "DONATION_STARTED";
-
   bottles: number;
   usd: number;
-
-  source:
-    | "monthly"
-    | "usage";
-
+  source: "monthly" | "usage";
   timestamp: string;
 }
 
 export interface DonationCompletedMessage {
   type: "DONATION_COMPLETED";
-
   donationId: string;
   amount: number;
   currency: string;
-
   url: string;
   timestamp: string;
 }

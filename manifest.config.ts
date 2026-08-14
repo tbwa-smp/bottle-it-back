@@ -31,6 +31,7 @@ export default defineManifest({
     "https://chat.deepseek.com/*",
     "https://donorbox.org/bottle-it-back*",
     "https://api.ecologits.ai/*",
+    "https://chat.mistral.ai/*"
   ],
   background: {
     service_worker: "src/utils/background.ts",
@@ -73,6 +74,7 @@ export default defineManifest({
         "https://copilot.microsoft.com/*",
         "https://www.deepseek.com/*",
         "https://chat.deepseek.com/*",
+        "https://chat.mistral.ai/*"
       ],
       js: ["src/utils/content.ts"],
       run_at: "document_idle",
