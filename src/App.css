@@ -600,30 +600,36 @@
 }
 
 .info-view__platform-logos {
-    display: flex;
-    align-items: flex-end;
-    justify-content: center;
-    padding: 0px 0px 10px;
-    border-radius: 14px;
-    width: 100%;
-	margin: 10px 0px;
-    flex-wrap: wrap;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+	max-width: 280px;
+	margin: 10px auto;
+	padding: 0 0 10px;
 }
 
 .info-view__platform-logo {
+	flex: 0 0 50%;
 	display: flex;
 	align-items: center;
-	justify-content: center;
-	max-width: 80px;
-	border-radius: 14px;
-	background: rgba(255, 255, 255, 0.06);
+	box-sizing: border-box;
+}
+
+.info-view__platform-logo:nth-child(odd) {
+	justify-content: flex-end;
+}
+
+.info-view__platform-logo:nth-child(even) {
+	justify-content: flex-start;
 }
 
 .info-view__platform-logo svg {
 	display: block;
 	width: 100%;
-	max-width: 120px;
-	height: 24px;
+	max-width: 115px;
+	height: 28px;
 }
 
 .info-view__content {

@@ -501,8 +501,8 @@ export function InfoIcon({ color = "#fff" }: { color?: string }) {
 const PLATFORM_LOGOS = [
   { label: "ChatGPT", Component: ChatGPT },
   { label: "Gemini", Component: Gemini },
-  { label: "MistralAI", Component: MistralAI },
   { label: "Claude", Component: Claude },
+  { label: "MistralAI", Component: MistralAI },
   // { label: "perplexity", Component: Perplexity },
 ];
 
@@ -527,8 +527,7 @@ export default function InfoView() {
         </div>
 
         <p className="info-view__copy info-view__copy--lead">
-          The only extension that is capable of tracking major AI chat
-          platforms.
+          An extension that is capable of tracking major AI chat platforms.
         </p>
 
         <div
