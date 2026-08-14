@@ -44,13 +44,9 @@ let currentDisplayState: DonationDisplayState = {
 };
 
 let hasReportedSuccess = false;
-
 let syncScheduled = false;
-
 let syncing = false;
-
 let lastLoggedSignature = "";
-
 let isForwardingDonorboxClick = false;
 
 function getDonationUsd(calculatedUsd: number): number {
@@ -63,7 +59,6 @@ function getDonationUsd(calculatedUsd: number): number {
 
 function isDonorboxPage(): boolean {
   const hostname = window.location.hostname.toLowerCase();
-
   const pathname = window.location.pathname.toLowerCase();
 
   return (
@@ -140,9 +135,7 @@ async function getDonationDisplayState(): Promise<DonationDisplayState> {
   ) {
     return {
       usd: getDonationUsd(normalizePositiveNumber(pending.usd)),
-
       bottles: normalizePositiveNumber(pending.bottles),
-
       source: "pending",
     };
   }
@@ -158,9 +151,7 @@ async function getDonationDisplayState(): Promise<DonationDisplayState> {
   };
 
   const todayMl = normalizePositiveNumber(stats?.todayMl);
-
   const bottleCapacityMl = normalizePositiveNumber(settings.bottleCapacityMl);
-
   const usdPerBottle = normalizePositiveNumber(settings.usdPerBottle);
 
   if (todayMl > 0 && bottleCapacityMl > 0) {
@@ -170,9 +161,7 @@ async function getDonationDisplayState(): Promise<DonationDisplayState> {
 
     return {
       bottles: Number(bottles.toFixed(2)),
-
       usd: getDonationUsd(calculatedUsd),
-
       source: "stats",
     };
   }
@@ -222,20 +211,16 @@ function applyAmountToDonorbox(usd: number): boolean {
 
   if (!input) {
     console.warn("[🍾💧 Bottle It Back] #donation_custom_amount not found");
-
     return false;
   }
 
   if (!Number.isFinite(usd) || usd <= 0) {
     console.warn("[🍾💧 Bottle It Back] donation amount is zero");
-
     return false;
   }
 
   const formatted = usd.toFixed(2);
-
   setNativeInputValue(input, formatted);
-
   console.log("[🍾💧 Bottle It Back] applied real Donorbox amount", formatted);
 
   return true;
@@ -493,9 +478,7 @@ function ensureSummary(): HTMLElement | null {
 
   if (!summary) {
     summary = createSummary();
-
     stepOne.appendChild(summary);
-
     console.log("[🍾💧 Bottle It Back] donation summary injected");
   }
 
@@ -513,11 +496,8 @@ function updateSummaryValues(
   state: DonationDisplayState,
 ): void {
   const amount = summary.querySelector<HTMLElement>(".bib-total-value");
-
   const bottles = summary.querySelector<HTMLElement>(".bib-total-bottles");
-
   setTextIfDifferent(amount, state.usd.toFixed(2));
-
   setTextIfDifferent(bottles, `${formatBottles(state.bottles)} BOTTLE/S`);
 }
 
@@ -571,9 +551,7 @@ function setFooterButtonLabel(active: boolean): void {
 
   if (active) {
     textNode.textContent = "Donate Bottles ";
-
     next.setAttribute("aria-label", "Donate Bottles");
-
     return;
   }
 
@@ -635,13 +613,11 @@ async function handleDonateClick(): Promise<void> {
 
   if (!footerButton) {
     console.error("[🍾💧 Bottle It Back] #footer_button not found");
-
     return;
   }
 
   console.log("[🍾💧 Bottle It Back] triggering real Donorbox Next button", {
     usd: state.usd,
-
     bottles: state.bottles,
   });
 
@@ -654,7 +630,6 @@ async function handleDonateClick(): Promise<void> {
   window.setTimeout(() => {
     if (isStepOneActive()) {
       console.warn("[🍾💧 Bottle It Back] Donorbox remained on Step 1");
-
       return;
     }
 
@@ -685,9 +660,7 @@ function bindFooterButton(): void {
       }
 
       event.preventDefault();
-
       event.stopImmediatePropagation();
-
       void handleDonateClick();
     },
     true,
@@ -709,9 +682,7 @@ function setStepOneExperience(active: boolean): void {
     }
 
     setHeaderLabel(true);
-
     setFooterButtonLabel(true);
-
     return;
   }
 
@@ -722,7 +693,6 @@ function setStepOneExperience(active: boolean): void {
   }
 
   setHeaderLabel(false);
-
   setFooterButtonLabel(false);
 }
 
@@ -735,7 +705,6 @@ async function syncDonationUi(): Promise<void> {
 
   try {
     const widget = getDonationWidget();
-
     const stepOne = getStepOne();
 
     if (!widget || !stepOne) {
@@ -751,9 +720,7 @@ async function syncDonationUi(): Promise<void> {
     }
 
     bindFooterButton();
-
     currentDisplayState = await getDonationDisplayState();
-
     updateSummaryValues(summary, currentDisplayState);
 
     const signature = [
@@ -863,9 +830,7 @@ async function reportDonationCompleted(): Promise<void> {
   try {
     const response = await chrome.runtime.sendMessage({
       type: "DONATION_COMPLETED",
-
       url: window.location.href,
-
       timestamp: new Date().toISOString(),
     });
 
