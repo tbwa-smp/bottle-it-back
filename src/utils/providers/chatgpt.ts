@@ -1,5 +1,3 @@
-import { encode } from 'gpt-tokenizer';
-
 import type {
   ProviderAdapter,
   ProviderContext,
@@ -69,10 +67,8 @@ export function createChatGptProvider(
     );
   }
 
-  function estimateOutputTokens(
-    text: string,
-  ): number {
-    return encode(text).length;
+  function estimateOutputTokens(text: string): number {
+    return Math.max(1, Math.ceil(Array.from(text).length / 4));
   }
 
   function stopPolling(): void {
@@ -353,10 +349,8 @@ export function createChatGptProvider(
      * Tokenize the final rendered assistant
      * response locally instead.
      */
-    const outputTokenCount =
-      estimateOutputTokens(
-        responseText,
-      );
+
+    const outputTokenCount = estimateOutputTokens(responseText);
 
     /*
      * EcoLogits currently references the
