@@ -1,699 +1,982 @@
 /// <reference types="vite/client" />
 /// <reference types="chrome" />
 
-import { getSiteDefinition } from "./sites";
-import { getWaterConsumptionFootprint } from "./ecologits";
+import { DEFAULT_SETTINGS, STORAGE_KEYS } from "./storage";
 import type {
-  ActivePingMessage,
-  AIResponseCompleteMessage,
-  PageVisitMessage,
   PendingDonationState,
-  PromptSubmitMessage,
-  SiteKey,
-  SiteStats,
-  TrackerMessage,
   TrackerStats,
   WaterModelSettings,
 } from "./types";
-import { DEFAULT_SETTINGS, STORAGE_KEYS } from "./storage";
 
-console.log("[🍾💧 Bottle It Back] background script loaded");
+const MINIMUM_DONATION_USD = 1;
 
-type BackgroundResponse =
-  | { ok: true; stats?: TrackerStats; settings?: WaterModelSettings }
-  | { ok: false; error: string };
+const DONORBOX_HOSTNAME = "donorbox.org";
+const DONORBOX_PATHNAME = "/bottle-it-back";
 
-const ACTION_ICONS_ENABLED = {
-  16: "icons/icon16.png",
-  32: "icons/icon32.png",
+const DONATION_WIDGET_SELECTOR = "#donation_section > article.donation-widget";
+const STEP_ONE_SELECTOR = "#donor-form-step-1";
+const STANDARD_DONATION_SECTION_SELECTOR = "#standard-donation-section";
+const CUSTOM_AMOUNT_SELECTOR = "#donation_custom_amount";
+const FOOTER_BUTTON_SELECTOR = "#footer_button";
+
+const SUMMARY_ID = "bib-donation-summary";
+const STYLE_ID = "bib-donation-watch-styles";
+const STEP_ONE_CLASS = "bib-offset-step";
+
+const DONATION_SUCCESS_MARKER_SELECTOR =
+  "#bottle-it-back-donation-completed[data-bib-donation-completed='true']";
+
+type DonationDisplayState = {
+  usd: number;
+  bottles: number;
+  minimumUsd: number;
+  minimumBottles: number;
+  usdPerBottle: number;
+  source: "pending" | "stats" | "empty";
 };
 
-const ACTION_ICONS_DISABLED = {
-  16: "icons/icon16-disabled.png",
-  32: "icons/icon32-disabled.png",
+let currentDisplayState: DonationDisplayState = {
+  usd: 0,
+  bottles: 0,
+  minimumUsd: MINIMUM_DONATION_USD,
+  minimumBottles: 0,
+  usdPerBottle: 0,
+  source: "empty",
 };
 
-async function syncActionIcon(trackingEnabled: boolean): Promise<void> {
-  if (!chrome.action?.setIcon) return;
+let hasReportedSuccess = false;
+let syncScheduled = false;
+let syncing = false;
+let lastLoggedSignature = "";
+let isForwardingDonorboxClick = false;
 
-  try {
-    await chrome.action.setIcon({
-      path: trackingEnabled ? ACTION_ICONS_ENABLED : ACTION_ICONS_DISABLED,
-    });
-  } catch (error) {
-    console.error("[🍾💧 Bottle It Back] failed to sync action icon", error);
-  }
+function roundMoney(value: number): number {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
-function getCurrentTimeZone(): string | undefined {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone;
-  } catch {
-    return undefined;
-  }
+function ceilMoney(value: number): number {
+  return Math.ceil((value - Number.EPSILON) * 100) / 100;
 }
 
-function getCurrentDateKeys() {
-  const now = new Date();
-  const timeZone = getCurrentTimeZone();
-
-  const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-
-  const parts = formatter.formatToParts(now);
-  const year = parts.find((part) => part.type === "year")?.value ?? "0000";
-  const month = parts.find((part) => part.type === "month")?.value ?? "01";
-  const day = parts.find((part) => part.type === "day")?.value ?? "01";
-
-  return {
-    dailyKey: `${year}-${month}-${day}`,
-    monthlyKey: `${year}-${month}`,
-  };
+function getDonationUsd(calculatedUsd: number): number {
+  if (!Number.isFinite(calculatedUsd)) return MINIMUM_DONATION_USD;
+  return Math.max(MINIMUM_DONATION_USD, roundMoney(calculatedUsd));
 }
 
-function createEmptyStats(): TrackerStats {
-  const { dailyKey, monthlyKey } = getCurrentDateKeys();
-
-  return {
-    todayMl: 0,
-    monthlyMl: 0,
-    totalVisits: 0,
-    totalPrompts: 0,
-    totalActiveSeconds: 0,
-    totalWaterMl: 0,
-    totalDonatedUsd: 0,
-    totalDonatedBottles: 0,
-    totalDonationsCount: 0,
-    lastDonationAt: null,
-    installedAt: null,
-    onboardedAt: null,
-    updatedAt: null,
-    lastDailyResetDate: dailyKey,
-    lastMonthlyResetKey: monthlyKey,
-    sites: {},
-  };
+function getMinimumDonationUsd(owedUsd: number): number {
+  if (!Number.isFinite(owedUsd) || owedUsd <= 0) return MINIMUM_DONATION_USD;
+  return Math.max(MINIMUM_DONATION_USD, ceilMoney(owedUsd));
 }
 
-function roundToTwo(value: number): number {
-  return Math.round(value * 100) / 100;
-}
-
-function normalizeSettings(partial?: Partial<WaterModelSettings>): WaterModelSettings {
-  const next: WaterModelSettings = {
-    ...DEFAULT_SETTINGS,
-    ...partial,
-  };
-
-  if (!Number.isFinite(next.donationThresholdBottles) || next.donationThresholdBottles < 0) {
-    next.donationThresholdBottles = DEFAULT_SETTINGS.donationThresholdBottles;
+function getBottlesFromUsd(
+  usd: number,
+  usdPerBottle: number,
+  fallback = 0,
+): number {
+  if (!Number.isFinite(usdPerBottle) || usdPerBottle <= 0) {
+    return Math.max(0, fallback);
   }
 
-  if (!Number.isFinite(next.usdPerBottle) || next.usdPerBottle <= 0) {
-    next.usdPerBottle = DEFAULT_SETTINGS.usdPerBottle;
-  }
-
-  if (!Number.isFinite(next.bottleCapacityMl) || next.bottleCapacityMl <= 0) {
-    next.bottleCapacityMl = DEFAULT_SETTINGS.bottleCapacityMl;
-  }
-
-  return next;
+  return Number((usd / usdPerBottle).toFixed(2));
 }
 
-function ensureLifecycleDates(stats: TrackerStats, installedTimestamp?: string): TrackerStats {
-  const next = structuredClone(stats);
-
-  if (!next.installedAt) {
-    next.installedAt = installedTimestamp ?? new Date().toISOString();
-  }
-
-  return next;
-}
-
-function normalizeStatsForCurrentPeriod(stats: TrackerStats): TrackerStats {
-  const next = structuredClone(stats);
-  const { dailyKey, monthlyKey } = getCurrentDateKeys();
-
-  if (next.lastDailyResetDate !== dailyKey) {
-    next.todayMl = 0;
-    next.lastDailyResetDate = dailyKey;
-  }
-
-  if (next.lastMonthlyResetKey !== monthlyKey) {
-    next.monthlyMl = 0;
-    next.lastMonthlyResetKey = monthlyKey;
-  }
-
-  return next;
-}
-
-async function getSettings(): Promise<WaterModelSettings> {
-  const result = await chrome.storage.local.get(STORAGE_KEYS.settings);
-
-  const settings = normalizeSettings(
-    result[STORAGE_KEYS.settings] as Partial<WaterModelSettings> | undefined,
-  );
-
-  await setSettings(settings);
-
-  return settings;
-}
-
-async function setSettings(settings: WaterModelSettings): Promise<void> {
-  await chrome.storage.local.set({
-    [STORAGE_KEYS.settings]: settings,
-  });
-}
-
-async function getStats(): Promise<TrackerStats> {
-  const result = await chrome.storage.local.get(STORAGE_KEYS.stats);
-  const stored = result[STORAGE_KEYS.stats] as Partial<TrackerStats> | undefined;
-
-  const merged: TrackerStats = {
-    ...createEmptyStats(),
-    ...stored,
-    sites: stored?.sites ?? {},
-  };
-
-  const withLifecycleDates = ensureLifecycleDates(merged);
-  const normalized = normalizeStatsForCurrentPeriod(withLifecycleDates);
-
-  const didChangePeriodState =
-    normalized.todayMl !== merged.todayMl ||
-    normalized.monthlyMl !== merged.monthlyMl ||
-    normalized.lastDailyResetDate !== merged.lastDailyResetDate ||
-    normalized.lastMonthlyResetKey !== merged.lastMonthlyResetKey ||
-    normalized.installedAt !== merged.installedAt ||
-    normalized.onboardedAt !== merged.onboardedAt;
-
-  if (didChangePeriodState) {
-    await setStats(normalized);
-  }
-
-  return normalized;
-}
-
-async function setStats(stats: TrackerStats): Promise<void> {
-  await chrome.storage.local.set({
-    [STORAGE_KEYS.stats]: stats,
-  });
-}
-
-function ensureSiteStats(stats: TrackerStats, siteKey: SiteKey, label: string): SiteStats {
-  const existing = stats.sites[siteKey];
-  if (existing) return existing;
-
-  const next: SiteStats = {
-    siteKey,
-    label,
-    visits: 0,
-    prompts: 0,
-    activeSeconds: 0,
-    waterMl: 0,
-    lastSeenAt: null,
-  };
-
-  stats.sites[siteKey] = next;
-
-  return next;
-}
-
-function touch(stats: TrackerStats, siteStats: SiteStats, timestamp: string): void {
-  stats.updatedAt = timestamp;
-  siteStats.lastSeenAt = timestamp;
-}
-
-function applyVisit(stats: TrackerStats, message: PageVisitMessage): TrackerStats {
-  const next = structuredClone(normalizeStatsForCurrentPeriod(stats));
-  const siteStats = ensureSiteStats(next, message.siteKey, message.label);
-
-  siteStats.visits += 1;
-  next.totalVisits += 1;
-
-  touch(next, siteStats, message.timestamp);
-
-  return next;
-}
-
-function applyPrompt(stats: TrackerStats, message: PromptSubmitMessage): TrackerStats {
-  const next = structuredClone(normalizeStatsForCurrentPeriod(stats));
-  const siteStats = ensureSiteStats(next, message.siteKey, message.label);
-
-  siteStats.prompts += 1;
-  next.totalPrompts += 1;
-
-  touch(next, siteStats, message.timestamp);
-
-  return next;
-}
-
-function applyActivePing(stats: TrackerStats, message: ActivePingMessage): TrackerStats {
-  const next = structuredClone(normalizeStatsForCurrentPeriod(stats));
-  const siteStats = ensureSiteStats(next, message.siteKey, message.label);
-
-  siteStats.activeSeconds += message.activeSeconds;
-  next.totalActiveSeconds += message.activeSeconds;
-
-  touch(next, siteStats, message.timestamp);
-
-  return next;
-}
-
-function applyAiResponseWater(
-  stats: TrackerStats,
-  message: AIResponseCompleteMessage,
-  waterMl: number,
-): TrackerStats {
-  const next = structuredClone(normalizeStatsForCurrentPeriod(stats));
-  const siteStats = ensureSiteStats(next, message.siteKey, message.label);
-
-  siteStats.waterMl = roundToTwo(siteStats.waterMl + waterMl);
-  next.todayMl = roundToTwo(next.todayMl + waterMl);
-  next.monthlyMl = roundToTwo(next.monthlyMl + waterMl);
-  next.totalWaterMl = roundToTwo(next.totalWaterMl + waterMl);
-
-  touch(next, siteStats, message.timestamp);
-
-  return next;
-}
-
-async function getPendingDonation(): Promise<PendingDonationState | null> {
-  const result = await chrome.storage.local.get(STORAGE_KEYS.pendingDonation);
+function isDonorboxPage(): boolean {
+  const hostname = window.location.hostname.toLowerCase();
+  const pathname = window.location.pathname.toLowerCase();
 
   return (
-    (result[STORAGE_KEYS.pendingDonation] as PendingDonationState | undefined) ??
-    null
+    (hostname === DONORBOX_HOSTNAME ||
+      hostname.endsWith(`.${DONORBOX_HOSTNAME}`)) &&
+    pathname.startsWith(DONORBOX_PATHNAME)
   );
 }
 
-async function setPendingDonation(pendingDonation: PendingDonationState): Promise<void> {
-  await chrome.storage.local.set({
-    [STORAGE_KEYS.pendingDonation]: pendingDonation,
-  });
+function getDonationWidget(): HTMLElement | null {
+  return document.querySelector<HTMLElement>(DONATION_WIDGET_SELECTOR);
 }
 
-async function clearPendingDonation(): Promise<void> {
-  await chrome.storage.local.remove(STORAGE_KEYS.pendingDonation);
+function getStepOne(): HTMLElement | null {
+  return document.querySelector<HTMLElement>(STEP_ONE_SELECTOR);
 }
 
-function applyDonationCompletion(
-  stats: TrackerStats,
-  pendingDonation: PendingDonationState,
-  timestamp: string,
-): TrackerStats {
-  const next = structuredClone(normalizeStatsForCurrentPeriod(stats));
+function getCustomAmountInput(): HTMLInputElement | null {
+  return document.querySelector<HTMLInputElement>(CUSTOM_AMOUNT_SELECTOR);
+}
 
-  next.todayMl = 0;
-  next.monthlyMl = 0;
+function getFooterButton(): HTMLButtonElement | null {
+  return document.querySelector<HTMLButtonElement>(FOOTER_BUTTON_SELECTOR);
+}
 
-  next.totalDonatedBottles = roundToTwo(
-    next.totalDonatedBottles + pendingDonation.bottles,
+function getFooterNextElement(): HTMLElement | null {
+  return document.querySelector<HTMLElement>(`${FOOTER_BUTTON_SELECTOR} .next`);
+}
+
+function getStepOneHeaderLabel(): HTMLElement | null {
+  return document.querySelector<HTMLElement>(
+    `${DONATION_WIDGET_SELECTOR} .tabs-header .display-amount .step-1`,
   );
-
-  next.totalDonatedUsd = roundToTwo(
-    next.totalDonatedUsd + pendingDonation.usd,
-  );
-
-  next.totalDonationsCount += 1;
-  next.lastDonationAt = timestamp;
-  next.updatedAt = timestamp;
-
-  return next;
 }
 
-async function initializeStorage(installedTimestamp?: string): Promise<void> {
-  const settings = await getSettings();
-  const stats = ensureLifecycleDates(await getStats(), installedTimestamp);
+function isStepOneActive(): boolean {
+  return Boolean(getStepOne()?.classList.contains("active"));
+}
 
-  await Promise.all([
-    setSettings(settings),
-    setStats(stats),
-    syncActionIcon(settings.trackingEnabled),
+function formatBottles(value: number): string {
+  if (!Number.isFinite(value)) return "0";
+  return Number(Math.max(0, value).toFixed(2)).toString();
+}
+
+function normalizePositiveNumber(value: unknown): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return 0;
+  return Math.max(0, value);
+}
+
+async function getDonationDisplayState(): Promise<DonationDisplayState> {
+  const result = await chrome.storage.local.get([
+    STORAGE_KEYS.pendingDonation,
+    STORAGE_KEYS.stats,
+    STORAGE_KEYS.settings,
   ]);
+
+  const pending = result[
+    STORAGE_KEYS.pendingDonation
+  ] as PendingDonationState | undefined;
+
+  const stats = result[STORAGE_KEYS.stats] as Partial<TrackerStats> | undefined;
+
+  const settings: WaterModelSettings = {
+    ...DEFAULT_SETTINGS,
+    ...(result[STORAGE_KEYS.settings] as
+      | Partial<WaterModelSettings>
+      | undefined),
+  };
+
+  const todayMl = normalizePositiveNumber(stats?.todayMl);
+  const monthlyMl = normalizePositiveNumber(stats?.monthlyMl);
+  const bottleCapacityMl = normalizePositiveNumber(settings.bottleCapacityMl);
+  const usdPerBottle = normalizePositiveNumber(settings.usdPerBottle);
+
+  let trackedMl = pending?.source === "monthly" ? monthlyMl : todayMl;
+  const owedBottles = bottleCapacityMl > 0 ? trackedMl / bottleCapacityMl : 0;
+  let owedUsd = owedBottles * usdPerBottle;
+
+  if (
+    owedUsd <= 0 &&
+    pending &&
+    typeof pending.usd === "number" &&
+    Number.isFinite(pending.usd)
+  ) {
+    owedUsd = pending.usd;
+  }
+
+  const minimumUsd = getMinimumDonationUsd(owedUsd);
+
+  const minimumBottles = getBottlesFromUsd(
+    minimumUsd,
+    usdPerBottle,
+    owedBottles,
+  );
+
+  if (
+    pending &&
+    typeof pending.usd === "number" &&
+    Number.isFinite(pending.usd) &&
+    pending.usd > 0
+  ) {
+    const selectedUsd = Math.max(minimumUsd, getDonationUsd(pending.usd));
+
+    return {
+      usd: selectedUsd,
+      bottles: getBottlesFromUsd(
+        selectedUsd,
+        usdPerBottle,
+        pending.bottles,
+      ),
+      minimumUsd,
+      minimumBottles,
+      usdPerBottle,
+      source: "pending",
+    };
+  }
+
+  if (trackedMl > 0 && bottleCapacityMl > 0) {
+    return {
+      usd: minimumUsd,
+      bottles: minimumBottles,
+      minimumUsd,
+      minimumBottles,
+      usdPerBottle,
+      source: "stats",
+    };
+  }
+
+  return {
+    usd: 0,
+    bottles: 0,
+    minimumUsd: MINIMUM_DONATION_USD,
+    minimumBottles: getBottlesFromUsd(
+      MINIMUM_DONATION_USD,
+      usdPerBottle,
+      0,
+    ),
+    usdPerBottle,
+    source: "empty",
+  };
 }
 
-chrome.runtime.onInstalled.addListener(() => {
-  console.log("[🍾💧 Bottle It Back] onInstalled fired");
-  void initializeStorage(new Date().toISOString());
+function setNativeInputValue(input: HTMLInputElement, value: string): void {
+  const descriptor = Object.getOwnPropertyDescriptor(
+    window.HTMLInputElement.prototype,
+    "value",
+  );
+
+  const setter = descriptor?.set;
+
+  input.focus();
+
+  if (setter) setter.call(input, value);
+  else input.value = value;
+
+  input.setAttribute("value", value);
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+  input.dispatchEvent(new Event("change", { bubbles: true }));
+  input.blur();
+}
+
+function applyAmountToDonorbox(usd: number): boolean {
+  const input = getCustomAmountInput();
+
+  if (!input) {
+    console.warn("[🍾💧 Bottle It Back] #donation_custom_amount not found");
+    return false;
+  }
+
+  if (!Number.isFinite(usd) || usd < MINIMUM_DONATION_USD) {
+    console.warn(
+      "[🍾💧 Bottle It Back] donation amount is below Donorbox minimum",
+      usd,
+    );
+    return false;
+  }
+
+  const formatted = usd.toFixed(2);
+
+  setNativeInputValue(input, formatted);
+
+  console.log(
+    "[🍾💧 Bottle It Back] applied real Donorbox amount",
+    formatted,
+  );
+
+  return true;
+}
+
+function injectStyles(): void {
+  if (document.getElementById(STYLE_ID)) return;
+
+  const style = document.createElement("style");
+  style.id = STYLE_ID;
+
+  style.textContent = `
+    ${STEP_ONE_SELECTOR}.${STEP_ONE_CLASS} ${STANDARD_DONATION_SECTION_SELECTOR} {
+      display: none !important;
+    }
+
+    #${SUMMARY_ID} {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+      box-sizing: border-box;
+      padding: 42px 24px 34px;
+      font-family: "Montserrat", Arial, sans-serif;
+      text-align: center;
+    }
+
+    #${SUMMARY_ID} .bib-total-label {
+      width: 100%;
+      margin: 0 0 10px !important;
+      color: #4777a5 !important;
+      font-family: "Montserrat", Arial, sans-serif !important;
+      font-size: 31px !important;
+      font-weight: 800 !important;
+      line-height: 1 !important;
+      text-align: left;
+      text-transform: uppercase;
+    }
+
+    #${SUMMARY_ID} .bib-total-box {
+      display: inline-flex;
+      align-items: flex-end;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      min-height: 112px;
+      padding: 14px 16px 18px;
+      box-sizing: border-box;
+      border: 5px solid rgba(255, 255, 255, 0.30);
+      border-radius: 22px;
+      background: rgba(255, 255, 255, 0.10);
+      box-shadow:
+        inset 0 2px 8px rgba(255, 255, 255, 0.18),
+        0 5px 12px rgba(62, 104, 150, 0.08);
+    }
+
+    #${SUMMARY_ID} .bib-total-value {
+      width: min(100%, 260px);
+      padding: 0;
+      border: 0;
+      outline: 0;
+      background: transparent;
+      color: #4777a5;
+      font-family: "Montserrat", Arial, sans-serif;
+      font-size: 72px;
+      font-weight: 800;
+      line-height: 0.9;
+      letter-spacing: -3px;
+      text-align: right;
+      appearance: textfield;
+      -moz-appearance: textfield;
+    }
+
+    #${SUMMARY_ID} .bib-total-value::-webkit-outer-spin-button,
+    #${SUMMARY_ID} .bib-total-value::-webkit-inner-spin-button {
+      margin: 0;
+      -webkit-appearance: none;
+    }
+
+    #${SUMMARY_ID} .bib-total-value:focus {
+      outline: none;
+    }
+
+    #${SUMMARY_ID} .bib-total-value:invalid {
+      text-decoration: underline;
+      text-decoration-style: dotted;
+      text-underline-offset: 8px;
+    }
+
+    #${SUMMARY_ID} .bib-total-currency {
+      padding-bottom: 7px;
+      color: #4777a5;
+      font-size: 27px;
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    #${SUMMARY_ID} .bib-total-bottles {
+      margin: 18px 0 0 !important;
+      color: #4777a5 !important;
+      font-family: "Montserrat", Arial, sans-serif !important;
+      font-size: 32px !important;
+      font-weight: 800 !important;
+      line-height: 1 !important;
+      text-transform: uppercase;
+    }
+
+    @media (max-width: 480px) {
+      #${SUMMARY_ID} {
+        padding: 34px 20px 28px;
+      }
+
+      #${SUMMARY_ID} .bib-total-label {
+        font-size: 28px !important;
+      }
+
+      #${SUMMARY_ID} .bib-total-value {
+        width: min(100%, 220px);
+        font-size: 62px;
+      }
+
+      #${SUMMARY_ID} .bib-total-currency {
+        font-size: 23px;
+      }
+
+      #${SUMMARY_ID} .bib-total-bottles {
+        font-size: 27px !important;
+      }
+    }
+  `;
+
+  document.head.appendChild(style);
+
+  console.log(
+    "[🍾💧 Bottle It Back] custom Donorbox Step 1 styles injected",
+  );
+}
+
+function createSummary(): HTMLElement {
+  const summary = document.createElement("div");
+  summary.id = SUMMARY_ID;
+
+  summary.innerHTML = `
+    <p class="bib-total-label">TOTAL</p>
+    <div class="bib-total-box">
+      <input
+        class="bib-total-value"
+        type="number"
+        inputmode="decimal"
+        step="0.01"
+        min="1.00"
+        value="1.00"
+        aria-label="Donation total in USD"
+      />
+      <span class="bib-total-currency">USD</span>
+    </div>
+    <p class="bib-total-bottles">0 BOTTLE/S</p>
+  `;
+
+  return summary;
+}
+
+function ensureSummary(): HTMLElement | null {
+  const stepOne = getStepOne();
+  if (!stepOne) return null;
+
+  stepOne.classList.add(STEP_ONE_CLASS);
+
+  let summary = document.getElementById(SUMMARY_ID);
+
+  if (!summary) {
+    summary = createSummary();
+    stepOne.appendChild(summary);
+
+    console.log("[🍾💧 Bottle It Back] donation summary injected");
+  }
+
+  return summary;
+}
+
+function setTextIfDifferent(
+  element: HTMLElement | null,
+  value: string,
+): void {
+  if (element && element.textContent !== value) {
+    element.textContent = value;
+  }
+}
+
+function getEditableAmountInput(
+  summary: HTMLElement,
+): HTMLInputElement | null {
+  return summary.querySelector<HTMLInputElement>(".bib-total-value");
+}
+
+function updateBottleDisplay(summary: HTMLElement, bottles: number): void {
+  const bottlesElement =
+    summary.querySelector<HTMLElement>(".bib-total-bottles");
+
+  setTextIfDifferent(
+    bottlesElement,
+    `${formatBottles(bottles)} BOTTLE/S`,
+  );
+}
+
+function updateSummaryValues(
+  summary: HTMLElement,
+  state: DonationDisplayState,
+): void {
+  const amountInput = getEditableAmountInput(summary);
+
+  if (amountInput) {
+    amountInput.min = state.minimumUsd.toFixed(2);
+    amountInput.dataset.minimumUsd = state.minimumUsd.toFixed(2);
+
+    if (document.activeElement !== amountInput) {
+      const desiredValue = state.usd.toFixed(2);
+
+      if (amountInput.value !== desiredValue) {
+        amountInput.value = desiredValue;
+      }
+    }
+  }
+
+  updateBottleDisplay(summary, state.bottles);
+}
+
+function normalizeEditableDonationUsd(value: number): number {
+  if (!Number.isFinite(value)) {
+    return currentDisplayState.minimumUsd;
+  }
+
+  return Math.max(
+    currentDisplayState.minimumUsd,
+    getDonationUsd(value),
+  );
+}
+
+async function persistPendingDonationAmount(
+  usd: number,
+  bottles: number,
+): Promise<void> {
+  try {
+    const result = await chrome.storage.local.get(
+      STORAGE_KEYS.pendingDonation,
+    );
+
+    const pending = result[
+      STORAGE_KEYS.pendingDonation
+    ] as PendingDonationState | undefined;
+
+    if (!pending) return;
+
+    const nextPending: PendingDonationState = {
+      ...pending,
+      usd: roundMoney(usd),
+      bottles: Number(bottles.toFixed(2)),
+    };
+
+    await chrome.storage.local.set({
+      [STORAGE_KEYS.pendingDonation]: nextPending,
+    });
+
+    console.log(
+      "[🍾💧 Bottle It Back] pending donation amount updated",
+      nextPending,
+    );
+  } catch (error) {
+    console.error(
+      "[🍾💧 Bottle It Back] failed to update pending donation amount",
+      error,
+    );
+  }
+}
+
+async function commitEditableAmount(
+  input: HTMLInputElement,
+  summary: HTMLElement,
+): Promise<void> {
+  const parsed = Number(input.value);
+  const normalizedUsd = normalizeEditableDonationUsd(parsed);
+
+  const bottles = getBottlesFromUsd(
+    normalizedUsd,
+    currentDisplayState.usdPerBottle,
+    currentDisplayState.bottles,
+  );
+
+  currentDisplayState = {
+    ...currentDisplayState,
+    usd: normalizedUsd,
+    bottles,
+  };
+
+  input.value = normalizedUsd.toFixed(2);
+  input.setCustomValidity("");
+
+  updateBottleDisplay(summary, bottles);
+
+  await persistPendingDonationAmount(normalizedUsd, bottles);
+}
+
+function bindEditableAmountInput(summary: HTMLElement): void {
+  const input = getEditableAmountInput(summary);
+
+  if (!input || input.dataset.bibAmountBound === "true") return;
+
+  input.addEventListener("focus", () => {
+    window.requestAnimationFrame(() => input.select());
+  });
+
+  input.addEventListener("input", () => {
+    const parsed = Number(input.value);
+    if (!Number.isFinite(parsed)) return;
+
+    if (parsed < currentDisplayState.minimumUsd) {
+      input.setCustomValidity(
+        `Minimum donation is $${currentDisplayState.minimumUsd.toFixed(2)}.`,
+      );
+      return;
+    }
+
+    input.setCustomValidity("");
+
+    const bottles = getBottlesFromUsd(
+      parsed,
+      currentDisplayState.usdPerBottle,
+      currentDisplayState.bottles,
+    );
+
+    updateBottleDisplay(summary, bottles);
+  });
+
+  input.addEventListener("blur", () => {
+    void commitEditableAmount(input, summary);
+  });
+
+  input.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+
+    event.preventDefault();
+    input.blur();
+  });
+
+  input.dataset.bibAmountBound = "true";
+}
+
+function setHeaderLabel(active: boolean): void {
+  const label = getStepOneHeaderLabel();
+  if (!label) return;
+
+  if (!label.dataset.bibOriginalText) {
+    label.dataset.bibOriginalText =
+      label.textContent?.trim() || "Choose amount";
+  }
+
+  label.textContent = active
+    ? "Offset your AI water footprint"
+    : label.dataset.bibOriginalText;
+}
+
+function findButtonTextNode(element: HTMLElement): Text | null {
+  for (const node of Array.from(element.childNodes)) {
+    if (
+      node.nodeType === Node.TEXT_NODE &&
+      node.textContent?.trim()
+    ) {
+      return node as Text;
+    }
+  }
+
+  return null;
+}
+
+function setFooterButtonLabel(active: boolean): void {
+  const next = getFooterNextElement();
+  if (!next) return;
+
+  const textNode = findButtonTextNode(next);
+  if (!textNode) return;
+
+  if (!next.dataset.bibOriginalText) {
+    next.dataset.bibOriginalText =
+      textNode.textContent?.trim() || "Next";
+  }
+
+  if (active) {
+    textNode.textContent = "Donate Bottles ";
+    next.setAttribute("aria-label", "Donate Bottles");
+    return;
+  }
+
+  textNode.textContent = `${next.dataset.bibOriginalText} `;
+  next.setAttribute("aria-label", "Next Button");
+}
+
+function clickDonorboxNextSafely(button: HTMLButtonElement): void {
+  const originalDataAction = button.getAttribute("data-action");
+
+  if (originalDataAction) {
+    button.removeAttribute("data-action");
+  }
+
+  isForwardingDonorboxClick = true;
+
+  try {
+    button.click();
+  } finally {
+    isForwardingDonorboxClick = false;
+
+    window.setTimeout(() => {
+      if (originalDataAction) {
+        button.setAttribute("data-action", originalDataAction);
+      }
+    }, 250);
+  }
+}
+
+async function handleDonateClick(): Promise<void> {
+  const summary = document.getElementById(SUMMARY_ID);
+
+  if (summary) {
+    const amountInput = getEditableAmountInput(summary);
+
+    if (amountInput) {
+      await commitEditableAmount(amountInput, summary);
+    }
+  }
+
+  const state = currentDisplayState;
+
+  if (state.usd <= 0) {
+    console.warn("[🍾💧 Bottle It Back] nothing to donate");
+    return;
+  }
+
+  if (state.usd < MINIMUM_DONATION_USD) {
+    console.warn(
+      "[🍾💧 Bottle It Back] donation amount is below Donorbox minimum",
+      {
+        usd: state.usd,
+        minimumUsd: MINIMUM_DONATION_USD,
+      },
+    );
+    return;
+  }
+
+  if (state.usd < state.minimumUsd) {
+    console.warn(
+      "[🍾💧 Bottle It Back] donation amount is below amount owed",
+      {
+        usd: state.usd,
+        minimumUsd: state.minimumUsd,
+      },
+    );
+    return;
+  }
+
+  if (!applyAmountToDonorbox(state.usd)) return;
+
+  await new Promise<void>((resolve) => {
+    window.setTimeout(resolve, 150);
+  });
+
+  const footerButton = getFooterButton();
+
+  if (!footerButton) {
+    console.error("[🍾💧 Bottle It Back] #footer_button not found");
+    return;
+  }
+
+  console.log(
+    "[🍾💧 Bottle It Back] triggering real Donorbox Next button",
+    {
+      usd: state.usd,
+      minimumUsd: state.minimumUsd,
+      bottles: state.bottles,
+    },
+  );
+
+  clickDonorboxNextSafely(footerButton);
+
+  window.setTimeout(scheduleSync, 100);
+  window.setTimeout(scheduleSync, 300);
+
+  window.setTimeout(() => {
+    if (isStepOneActive()) {
+      console.warn("[🍾💧 Bottle It Back] Donorbox remained on Step 1");
+      return;
+    }
+
+    console.log(
+      "[🍾💧 Bottle It Back] Donorbox advanced from Step 1",
+    );
+  }, 600);
+}
+
+function bindFooterButton(): void {
+  const button = getFooterButton();
+
+  if (!button || button.dataset.bibClickBound === "true") return;
+
+  button.addEventListener(
+    "click",
+    (event) => {
+      if (isForwardingDonorboxClick || !isStepOneActive()) return;
+
+      event.preventDefault();
+      event.stopImmediatePropagation();
+
+      void handleDonateClick();
+    },
+    true,
+  );
+
+  button.dataset.bibClickBound = "true";
+}
+
+function setStepOneExperience(active: boolean): void {
+  const stepOne = getStepOne();
+  const summary = document.getElementById(SUMMARY_ID);
+
+  if (active) {
+    stepOne?.classList.add(STEP_ONE_CLASS);
+
+    if (summary) summary.hidden = false;
+
+    setHeaderLabel(true);
+    setFooterButtonLabel(true);
+    return;
+  }
+
+  stepOne?.classList.remove(STEP_ONE_CLASS);
+
+  if (summary) summary.hidden = true;
+
+  setHeaderLabel(false);
+  setFooterButtonLabel(false);
+}
+
+async function syncDonationUi(): Promise<void> {
+  if (syncing || !isDonorboxPage()) return;
+
+  syncing = true;
+
+  try {
+    const widget = getDonationWidget();
+    const stepOne = getStepOne();
+
+    if (!widget || !stepOne) return;
+
+    injectStyles();
+
+    const summary = ensureSummary();
+    if (!summary) return;
+
+    bindFooterButton();
+    bindEditableAmountInput(summary);
+
+    currentDisplayState = await getDonationDisplayState();
+
+    updateSummaryValues(summary, currentDisplayState);
+
+    const signature = [
+      currentDisplayState.source,
+      currentDisplayState.usd,
+      currentDisplayState.minimumUsd,
+      currentDisplayState.bottles,
+    ].join(":");
+
+    if (signature !== lastLoggedSignature) {
+      lastLoggedSignature = signature;
+
+      console.log(
+        "[🍾💧 Bottle It Back] donation values",
+        currentDisplayState,
+      );
+    }
+
+    setStepOneExperience(isStepOneActive());
+  } catch (error) {
+    console.error(
+      "[🍾💧 Bottle It Back] donation UI sync failed",
+      error,
+    );
+  } finally {
+    syncing = false;
+  }
+}
+
+function scheduleSync(): void {
+  if (syncScheduled) return;
+
+  syncScheduled = true;
+
+  window.setTimeout(() => {
+    syncScheduled = false;
+    void syncDonationUi();
+  }, 50);
+}
+
+function hasConfirmedDonationMarker(): boolean {
+  return Boolean(
+    document.querySelector(DONATION_SUCCESS_MARKER_SELECTOR),
+  );
+}
+
+async function hasPendingDonation(): Promise<boolean> {
+  try {
+    const result = await chrome.storage.local.get(
+      STORAGE_KEYS.pendingDonation,
+    );
+
+    const pending = result[
+      STORAGE_KEYS.pendingDonation
+    ] as PendingDonationState | undefined;
+
+    return Boolean(pending);
+  } catch (error) {
+    console.error(
+      "[🍾💧 Bottle It Back] failed to read pending donation",
+      error,
+    );
+
+    return false;
+  }
+}
+
+async function reportDonationCompleted(): Promise<void> {
+  if (hasReportedSuccess || !hasConfirmedDonationMarker()) return;
+
+  const pending = await hasPendingDonation();
+
+  if (!pending) {
+    console.log(
+      "[🍾💧 Bottle It Back] donation success marker found, but there is no pending Bottle It Back donation",
+    );
+    return;
+  }
+
+  hasReportedSuccess = true;
+
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: "DONATION_COMPLETED",
+      url: window.location.href,
+      timestamp: new Date().toISOString(),
+    });
+
+    console.log(
+      "[🍾💧 Bottle It Back] confirmed Donorbox donation completed",
+      response,
+    );
+  } catch (error) {
+    hasReportedSuccess = false;
+
+    console.error(
+      "[🍾💧 Bottle It Back] failed to report completed donation",
+      error,
+    );
+  }
+}
+
+function checkForConfirmedDonation(): void {
+  if (!hasConfirmedDonationMarker()) return;
+  void reportDonationCompleted();
+}
+
+function run(): void {
+  checkForConfirmedDonation();
+
+  if (isDonorboxPage()) {
+    scheduleSync();
+  }
+}
+
+console.log("[🍾💧 Bottle It Back] Donorbox watcher loaded", {
+  url: window.location.href,
 });
 
-chrome.runtime.onStartup.addListener(() => {
-  void initializeStorage();
+run();
+
+const observer = new MutationObserver(() => {
+  checkForConfirmedDonation();
+
+  if (isDonorboxPage()) {
+    scheduleSync();
+  }
 });
+
+observer.observe(document.documentElement, {
+  childList: true,
+  subtree: true,
+  attributes: true,
+  attributeFilter: [
+    "class",
+    "id",
+    "data-bib-donation-completed",
+  ],
+});
+
+window.addEventListener("load", run);
+document.addEventListener("readystatechange", run);
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
-  if (areaName !== "local" || !changes[STORAGE_KEYS.settings]) return;
+  if (areaName !== "local") return;
 
-  const nextSettings = normalizeSettings(
-    changes[STORAGE_KEYS.settings].newValue as
-      | Partial<WaterModelSettings>
-      | undefined,
-  );
+  const relevant =
+    changes[STORAGE_KEYS.pendingDonation] ||
+    changes[STORAGE_KEYS.stats] ||
+    changes[STORAGE_KEYS.settings];
 
-  void syncActionIcon(nextSettings.trackingEnabled);
+  if (relevant) scheduleSync();
 });
-
-chrome.runtime.onMessage.addListener(
-  (
-    message: TrackerMessage,
-    _sender: chrome.runtime.MessageSender,
-    sendResponse: (response: BackgroundResponse) => void,
-  ): true => {
-    void (async () => {
-      try {
-        console.log("[🍾💧 Bottle It Back] Received message", message);
-
-        switch (message.type) {
-          case "PAGE_VISIT": {
-            const [stats, settings] = await Promise.all([
-              getStats(),
-              getSettings(),
-            ]);
-
-            if (!settings.trackingEnabled) {
-              sendResponse({ ok: true, stats });
-              return;
-            }
-
-            const nextStats = applyVisit(stats, message);
-            await setStats(nextStats);
-
-            sendResponse({
-              ok: true,
-              stats: nextStats,
-            });
-
-            return;
-          }
-
-          case "PROMPT_SUBMIT": {
-            const [stats, settings] = await Promise.all([
-              getStats(),
-              getSettings(),
-            ]);
-
-            if (!settings.trackingEnabled) {
-              sendResponse({ ok: true, stats });
-              return;
-            }
-
-            const nextStats = applyPrompt(stats, message);
-            await setStats(nextStats);
-
-            sendResponse({
-              ok: true,
-              stats: nextStats,
-            });
-
-            return;
-          }
-
-          case "AI_RESPONSE_COMPLETE": {
-            const [stats, settings] = await Promise.all([
-              getStats(),
-              getSettings(),
-            ]);
-
-            if (!settings.trackingEnabled) {
-              sendResponse({ ok: true, stats });
-              return;
-            }
-
-            if (!message.modelName.trim()) {
-              sendResponse({
-                ok: false,
-                error: "AI response is missing a model name.",
-              });
-              return;
-            }
-
-            if (
-              !Number.isFinite(message.outputTokenCount) ||
-              message.outputTokenCount <= 0
-            ) {
-              sendResponse({
-                ok: false,
-                error: "AI response has an invalid output token count.",
-              });
-              return;
-            }
-
-            if (
-              !Number.isFinite(message.requestLatency) ||
-              message.requestLatency < 0
-            ) {
-              sendResponse({
-                ok: false,
-                error: "AI response has an invalid request latency.",
-              });
-              return;
-            }
-
-            const wcf = await getWaterConsumptionFootprint({
-              provider: message.provider,
-              model_name: message.modelName,
-              output_token_count: message.outputTokenCount,
-              request_latency: message.requestLatency,
-            });
-
-            console.log("[🍾💧 Bottle It Back] AI response WCF", {
-              siteKey: message.siteKey,
-              provider: message.provider,
-              modelName: message.modelName,
-              outputTokenCount: message.outputTokenCount,
-              requestLatency: message.requestLatency,
-              tokenSource: message.tokenSource,
-              wcf,
-            });
-
-            const waterMl = wcf.averageMl;
-
-            if (!Number.isFinite(waterMl) || waterMl < 0) {
-              sendResponse({
-                ok: false,
-                error: "EcoLogits returned an invalid water consumption value.",
-              });
-              return;
-            }
-
-            const nextStats = applyAiResponseWater(
-              stats,
-              message,
-              waterMl,
-            );
-
-            await setStats(nextStats);
-
-            console.log("[🍾💧 Bottle It Back] EcoLogits water added to stats", {
-              siteKey: message.siteKey,
-              waterMl,
-              todayMl: nextStats.todayMl,
-              monthlyMl: nextStats.monthlyMl,
-              totalWaterMl: nextStats.totalWaterMl,
-            });
-
-            sendResponse({
-              ok: true,
-              stats: nextStats,
-            });
-
-            return;
-          }
-
-          case "ACTIVE_PING": {
-            const [stats, settings] = await Promise.all([
-              getStats(),
-              getSettings(),
-            ]);
-
-            if (!settings.trackingEnabled) {
-              sendResponse({ ok: true, stats });
-              return;
-            }
-
-            const nextStats = applyActivePing(stats, message);
-            await setStats(nextStats);
-
-            sendResponse({
-              ok: true,
-              stats: nextStats,
-            });
-
-            return;
-          }
-
-          case "GET_STATS": {
-            sendResponse({
-              ok: true,
-              stats: await getStats(),
-            });
-
-            return;
-          }
-
-          case "GET_SETTINGS": {
-            sendResponse({
-              ok: true,
-              settings: await getSettings(),
-            });
-
-            return;
-          }
-
-          case "RESET_STATS": {
-            const stats = await getStats();
-
-            const nextStats: TrackerStats = {
-              ...stats,
-              todayMl: 0,
-              monthlyMl: 0,
-              updatedAt: new Date().toISOString(),
-            };
-
-            await setStats(nextStats);
-
-            sendResponse({
-              ok: true,
-              stats: nextStats,
-            });
-
-            return;
-          }
-
-          case "UPDATE_SETTINGS": {
-            const current = await getSettings();
-
-            const nextSettings: WaterModelSettings = {
-              ...current,
-              ...message.settings,
-            };
-
-            const normalizedSettings = normalizeSettings(nextSettings);
-
-            await setSettings(normalizedSettings);
-            await syncActionIcon(normalizedSettings.trackingEnabled);
-
-            sendResponse({
-              ok: true,
-              settings: normalizedSettings,
-            });
-
-            return;
-          }
-
-          case "DONATION_STARTED": {
-            const pendingDonation: PendingDonationState = {
-              bottles: message.bottles,
-              usd: message.usd,
-              source: message.source,
-              startedAt: message.timestamp,
-            };
-
-            await setPendingDonation(pendingDonation);
-
-            sendResponse({
-              ok: true,
-            });
-
-            return;
-          }
-
-          case "DONATION_COMPLETED": {
-            const [stats, pendingDonation] = await Promise.all([
-              getStats(),
-              getPendingDonation(),
-            ]);
-
-            if (!pendingDonation) {
-              sendResponse({
-                ok: true,
-                stats,
-              });
-
-              return;
-            }
-
-            const nextStats = applyDonationCompletion(
-              stats,
-              pendingDonation,
-              message.timestamp,
-            );
-
-            await Promise.all([
-              setStats(nextStats),
-              clearPendingDonation(),
-            ]);
-
-            sendResponse({
-              ok: true,
-              stats: nextStats,
-            });
-
-            return;
-          }
-
-          case "MARK_ONBOARDED": {
-            const stats = await getStats();
-
-            if (stats.onboardedAt) {
-              sendResponse({
-                ok: true,
-                stats,
-              });
-
-              return;
-            }
-
-            const nextStats: TrackerStats = {
-              ...stats,
-              onboardedAt: message.timestamp,
-              updatedAt: message.timestamp,
-            };
-
-            await setStats(nextStats);
-
-            sendResponse({
-              ok: true,
-              stats: nextStats,
-            });
-
-            return;
-          }
-
-          default: {
-            sendResponse({
-              ok: false,
-              error: "Unknown message type.",
-            });
-
-            return;
-          }
-        }
-      } catch (error) {
-        const siteLabel =
-          "siteKey" in message
-            ? getSiteDefinition(message.siteKey)?.label
-            : undefined;
-
-        console.error("[🍾💧 Bottle It Back] background error", {
-          error,
-          message,
-          siteLabel,
-        });
-
-        sendResponse({
-          ok: false,
-          error:
-            error instanceof Error
-              ? error.message
-              : "Unknown background error.",
-        });
-      }
-    })();
-
-    return true;
-  },
-);
